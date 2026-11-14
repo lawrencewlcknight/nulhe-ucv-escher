@@ -4,6 +4,24 @@ The current suite validates the fixed-limit game and the learner boundary.
 The opt-in opponent suite tests the actual pinned Java core and strategy tables.
 These are integration checks, not a playing-strength benchmark.
 
+## Production training specification validation — 2026-11-15
+
+* Offline suite: **68 passed, 8 skipped**. Skips are the opt-in Ray/Fell Omen 2 suites.
+* Real two-worker collection and exact resumed continuation: **1 passed** separately.
+* Regret-cache tests compare model weights, Adam state and replay RNG against
+  uncached fitting with undersized batches, partial cache batches and saturated
+  replay. Changing labels and target iteration verifies per-fit rebuilding.
+* Scalar collection and batched critic targets agree on zero ties, negative
+  ties, unequal negative values, illegal actions and positive regret matching.
+* Policy checks cover stable information-set-disjoint validation, preservation
+  of iteration-weighted cross-entropy, and restoring the best model together
+  with its matching optimizer state.
+* Recovery-only checkpoints, independent schedule clocks, serialized schedule
+  restoration, final saves, CLI resume and policy-fit RNG isolation pass.
+* Production settings and the limit-game bound on regret-buffer occupancy are
+  checked. No configuration sweep, long training, production-memory benchmark
+  or new playing-strength evaluation was run.
+
 ## Encoder v5 validation — 2026-11-15
 
 * Offline suite: **53 passed, 8 skipped**; skips are opt-in Ray/Fell Omen 2 tests.

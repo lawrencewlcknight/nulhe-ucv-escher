@@ -20,7 +20,10 @@ It preserves exact cards and betting history, and adds hand strength, draw
 potential, board texture, pot odds and betting interactions. Three network
 branches process exact cards, strategic card descriptors and betting context.
 See [the representation review](docs/STRATEGIC_FEATURES.md) for exact versus sampled
-statistics, costs and design choices. Learning objectives and budgets are unchanged.
+statistics, costs and design choices. The production training specification uses
+1,000 regret updates per player and retains the 2,500-update critics and
+2,000-update calibration learner. Regret replay is 250,000 rows per player;
+historical policy replay is two million rows.
 Regret and average-policy networks use 96-wide input branches and a 256/256
 hidden trunk; critics use 96 and 192/192; calibration retains 64 and 128/128.
 The six online networks total 914,321 trainable parameters. See the
@@ -64,23 +67,35 @@ Smoke reduces replay, minibatch and optimiser budgets; it is not evidence of
 playing strength. It uses the full baseline network sizes. Tests exercise real OpenSpiel and PyTorch. Ray tests start
 real local worker processes and are opt-in.
 
-The inherited learning budget is in
+The production learning budget is in
 [`hulhe_escher/data/baseline.json`](hulhe_escher/data/baseline.json).
 An explicit training invocation using the original eight-worker arrangement is:
 
 ```bash
 python -m hulhe_escher.train --iterations 100 --workers 8 --threads 8 \
-  --checkpoint-every 50 --seed 0 --output outputs/baseline-seed0
+  --recovery-seconds 3600 --policy-seconds 21600 --seed 0 --output outputs/baseline-seed0
 ```
 
 This is a substantial workload: 10,000 trajectories **per player per iteration**,
-large replay buffers, and 20,000 policy updates per checkpoint. Benchmark memory
+large replay buffers, and up to 20,000 policy updates per fit. Benchmark memory
 and throughput on the intended training machine before choosing a long run.
 The command uses the current machine and does not submit any cloud jobs.
 
-Each checkpoint saves a playable policy and a checksummed, sharded continuation
-state containing networks, optimisers, replay, temporal critic history and RNGs,
-including actor RNGs. Only complete outer iterations are saved. `--resume` checks
+Recovery saves occur every hour of active learner time, and playable policies
+are fitted every six hours. Both are written at the requested final iteration.
+Policy validation uses a stable 5% information-set holdout, checks updates
+2,500/5,000/10,000/20,000 and retains the best model and matching optimizer.
+It follows one fitting trajectory, not separate training experiments. All 20,000
+updates execute; selection can retain an earlier checkpoint. Tiny smoke replays
+without both split partitions fit all groups and report validation unavailable.
+The optional `--checkpoint-every N` also triggers both operations every N
+iterations; smoke defaults to every iteration. Policy fitting, persistence and
+downtime do not advance the active learner clock, and boundaries can overshoot
+by one outer iteration. The two schedule clocks are restored on resume.
+
+Checksummed, sharded continuation states contain networks, optimisers, replay,
+temporal critic history and RNGs, including actor RNGs. Recovery saves do not
+require a policy fit. Only complete outer iterations are saved. `--resume` checks
 the source fingerprint, runtime, seed, configuration and worker arrangement;
 `--iterations` is the desired **total**, not additional iterations. Use trusted
 checkpoint files only; their PyTorch/pickle metadata is not an untrusted format.
@@ -98,14 +113,17 @@ cadence. A retention policy and cloud runner remain future work.
 | `tests/` | Fixed-limit rules, information boundaries, cache equivalence, resume and actors |
 | `docs/` | Baseline evidence, provenance and next implementation steps |
 
-The HUNL source history is retained in this independent local repository. No
-remote is configured. Ignored outputs, checkpoints, environments and build caches
+The HUNL source history is retained in this independent repository.
+Ignored outputs, checkpoints, environments and build caches
 were not copied. The source HUNL repository is untouched.
 
 The default encoder is `hulhe_strategic_limit_v5`. Policy checkpoint format 2
 supports v5 and the original fixed-limit v2/v3/v4 encoders for evaluation.
 Full continuation checks the exact game and encoder: **start fresh training for
 v5**. Old v2/v3/v4 replay cannot be reused. HUNL/preparation-copy policies remain rejected.
+The production training-specification update also requires a fresh run: old
+continuations have a different source/configuration contract. Saved playable
+policies still load with their original encoder and network dimensions.
 
 ## Play a checkpoint against Fell Omen 2
 

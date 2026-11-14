@@ -1,11 +1,11 @@
 {
   "game_name": "HULHE",
-  "advantage_buffer_size": 1000000,
-  "ave_policy_buffer_size": 1000000,
+  "advantage_buffer_size": 250000,
+  "ave_policy_buffer_size": 2000000,
   "baseline_buffer_size": 1000000,
   "learning_rate": 0.001,
   "num_traversals": 10000,
-  "advantage_network_train_steps": 750,
+  "advantage_network_train_steps": 1000,
   "ave_policy_network_train_steps": 5000,
   "baseline_network_train_steps": 2500,
   "advantage_batch_size": 2048,
@@ -13,8 +13,14 @@
   "baseline_batch_size": 2048,
   "num_layers": 2,
   "num_hiddens": 256,
-  "critic_network_layers": [192, 192],
-  "calibration_network_layers": [128, 128],
+  "critic_network_layers": [
+    192,
+    192
+  ],
+  "calibration_network_layers": [
+    128,
+    128
+  ],
   "calibration_branch_width": 64,
   "reinitialize_advantage_networks": false,
   "reinitialize_imm_regret_networks": true,
@@ -72,5 +78,14 @@
   "paired_legacy_train_steps": 5000,
   "structured_branch_width": 96,
   "cache_frozen_critic_targets": true,
-  "feature_encoder_id": "hulhe_strategic_limit_v5"
+  "feature_encoder_id": "hulhe_strategic_limit_v5",
+  "cache_frozen_regret_targets": true,
+  "uniform_regret_ties": true,
+  "policy_validation_fraction": 0.05,
+  "policy_validation_steps": [
+    2500,
+    5000,
+    10000,
+    20000
+  ]
 }

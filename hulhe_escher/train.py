@@ -4,6 +4,7 @@ Bounded local training and resumable smoke runs; never submits cloud jobs."""
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import platform
 import time
@@ -15,6 +16,7 @@ from importlib.metadata import version
 from .config import baseline_config, smoke_config, make_solver
 from .game import serialisable_game_definition
 from .checkpointing import save_policy_checkpoint
+from .checkpoint_schedule import CheckpointSchedule
 from .training_state import build_training_state, restore_training_state, save_training_state, read_training_state
 
 
@@ -46,19 +48,26 @@ def main(argv=None):
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--config", type=Path)
     parser.add_argument("--checkpoint-every", type=int, default=None,
-                        help="Completed iterations between policy fits/checkpoints (smoke: 1; otherwise: 50)")
+                        help="Optional legacy iteration interval triggering both saves and policy fits")
+    parser.add_argument("--recovery-seconds", type=float, default=3600,
+                        help="Active learner seconds between full recovery saves (default: 3600)")
+    parser.add_argument("--policy-seconds", type=float, default=21600,
+                        help="Active learner seconds between playable-policy fits (default: 21600)")
     args = parser.parse_args(argv)
     if min(args.iterations, args.workers, args.threads) < 1:
         parser.error("iterations, workers and threads must be positive")
     if args.config and args.smoke:
         parser.error("Choose either a custom config or smoke")
-    checkpoint_every = args.checkpoint_every if args.checkpoint_every is not None else (1 if args.smoke else 50)
-    if checkpoint_every < 1:
+    checkpoint_every = args.checkpoint_every if args.checkpoint_every is not None else (1 if args.smoke else None)
+    if checkpoint_every is not None and checkpoint_every < 1:
         parser.error("checkpoint-every must be positive")
+    if any(not math.isfinite(v) or v <= 0 for v in (args.recovery_seconds, args.policy_seconds)):
+        parser.error("recovery-seconds and policy-seconds must be finite and positive")
     config = (json.loads(args.config.read_text()) if args.config else
               smoke_config() if args.smoke else baseline_config())
     contract = {"config": config, "seed": args.seed, "workers": args.workers,
                 "threads": args.threads, "checkpoint_every": checkpoint_every,
+                "recovery_seconds": args.recovery_seconds, "policy_seconds": args.policy_seconds,
                 "source_fingerprint": source_fingerprint(),
                 "game": serialisable_game_definition(), "smoke": args.smoke,
                 "runtime": {"python": platform.python_version(), "torch": torch.__version__,
@@ -79,18 +88,24 @@ def main(argv=None):
     try:
         kwargs = dict(seed=args.seed, repository_commit=contract["source_fingerprint"], config=config)
         latest = root / "latest.json"
+        schedule = CheckpointSchedule()
         if args.resume:
             pointer = json.loads(latest.read_text())
-            restore_training_state(solver, read_training_state(root / pointer["state"]), **kwargs)
+            payload = read_training_state(root / pointer["state"])
+            restore_training_state(solver, payload, **kwargs)
+            schedule = CheckpointSchedule(**payload["checkpoint_schedule"])
         while solver.num_iteration < args.iterations:
             started = time.perf_counter()
             solver.iteration()
             learner_seconds = time.perf_counter() - started
             solver._resume_training_elapsed_seconds += learner_seconds
             iteration = solver.num_iteration
-            checkpoint = iteration % checkpoint_every == 0 or iteration == args.iterations
+            active_seconds = solver._training_elapsed_seconds()
+            recovery, policy = schedule.due(iteration=iteration, final=iteration == args.iterations,
+                active_seconds=active_seconds, recovery_seconds=args.recovery_seconds,
+                policy_seconds=args.policy_seconds, legacy_every=checkpoint_every)
             policy_seconds = 0.0
-            if checkpoint:
+            if policy:
                 rng = solver._capture_rng_state()
                 started_policy = time.perf_counter()
                 try:
@@ -102,18 +117,24 @@ def main(argv=None):
                    "learner_seconds": learner_seconds, "policy_fit_seconds": policy_seconds,
                    "learning_seconds": learner_seconds + policy_seconds,
                    "training_elapsed_seconds": solver._training_elapsed_seconds(),
-                   "policy_fitted": checkpoint,
-                   "policy_loss": solver._last_average_policy_loss if checkpoint else None,
+                   "policy_fitted": policy, "recovery_saved": recovery,
+                   "policy_loss": solver._last_average_policy_loss if policy else None,
+                   "policy_validation": getattr(solver.ave_policy_trainer, "last_fit_diagnostics", {}) if policy else None,
+                   "regret_updates_per_player": config["advantage_network_train_steps"],
+                   "regret_cache": [getattr(t, "last_target_cache_stats", {}) for t in solver.regret_trainers],
                    "critic_target_versions": [m.target_version for m in solver.q_value_trainer.members],
                    "critic_updates_per_member": config["baseline_network_train_steps"],
                    "critic_cache": [getattr(m, "last_target_cache_stats", {}) for m in solver.q_value_trainer.members]}
             persistence_started = time.perf_counter()
-            if checkpoint:
-                state_name = f"state_{iteration:06d}"
-                save_training_state(root / state_name, build_training_state(
-                    solver, **kwargs, checkpoint_id=str(iteration), captured_checkpoints=[]))
+            schedule.completed(active_seconds, recovery=recovery, policy=policy)
+            if policy:
                 save_policy_checkpoint(solver, root / f"policy_{iteration:06d}.pkl",
                                        seed=args.seed, config=config, checkpoint_row=row)
+            if recovery:
+                state_name = f"state_{iteration:06d}"
+                payload = build_training_state(solver, **kwargs, checkpoint_id=str(iteration), captured_checkpoints=[])
+                payload["checkpoint_schedule"] = schedule.state()
+                save_training_state(root / state_name, payload)
                 write_json(latest, {"iteration": iteration, "state": state_name})
             row["persistence_seconds"] = time.perf_counter() - persistence_started
             row["iteration_wall_seconds"] = time.perf_counter() - started

@@ -1,8 +1,7 @@
 # Inherited UCV-ESCHER baseline
 
-This document describes the source HUNL implementation and its evidence. The
-HULHE project retains the learning objectives and update budgets, but has replaced the no-limit game
-and encoder with the [fixed-limit interface](GAME_INTERFACE.md). The HUNL-specific
+This document describes the current HULHE specification and its inherited evidence.
+The project uses the [fixed-limit interface](GAME_INTERFACE.md). The HUNL-specific
 section below is historical and does not describe the current game.
 Package references below use the new namespace.
 
@@ -21,8 +20,8 @@ branches, followed by the shared hidden trunk and output layer.
 
 This is three hidden layers on each input-to-output path. Total online trainable
 capacity is **914,321 parameters**, up from 911,377 with encoder v4; frozen targets, temporal
-snapshots and optimiser state are additional. V5 adds four policy inputs and eight critic inputs; replay capacities
-are unchanged. Smoke uses the same architecture with smaller sampling and fit budgets.
+snapshots and optimiser state are additional. V5 adds four policy inputs and eight critic inputs.
+Smoke uses the same architecture with smaller sampling and fit budgets.
 
 `num_hiddens` and `num_layers` now control the regret trunk independently of
 `critic_network_layers`, `calibration_network_layers` and the existing
@@ -102,14 +101,16 @@ it beneficial.
 | TD target cache | Rebuilt once per eligible fit; no cache reused across target/replay/iteration changes |
 | Sampling | Learned residual-standard-deviation proposal, mixed with 20% uniform legal-action probability mass |
 | Calibration | Enabled; 2,000 updates per iteration; batch 2,048; LR 0.001; minimum variance 1e-5 |
-| Regret fitting | One network per player; 750 updates per player per iteration; batch 2,048; LR 0.001; alpha 2.3; persistent cumulative networks |
+| Regret fitting | One network per player; 1,000 updates per player per iteration; batch 2,048; LR 0.001; alpha 2.3; persistent cumulative networks; frozen targets cached once per fit |
+| Non-positive regret fallback | Uniform among exactly tied maximum legal regrets; unequal negative regrets retain argmax; positive regret matching unchanged |
 | Instantaneous predictor | Disabled; prediction gate fixed at zero |
-| Average policy | Grouped soft-target cross entropy; iteration weighting gamma 2; reset each fit; 20,000 updates; batch 2,048; LR 0.003 |
-| Policy fit cadence | Checkpoints only, preserving the FHP approach; the initial runner uses completed-iteration checkpoints (50 by default), plus the final endpoint |
+| Average policy | Grouped soft-target cross entropy; iteration weighting gamma 2; reset each fit; 20,000 updates with best validation-checkpoint selection; batch 2,048; LR 0.003 |
+| Policy fit cadence | Every six active learner hours and final endpoint; independent of recovery saves |
+| Recovery cadence | Every active learner hour and final endpoint, at completed outer iterations |
 | Collection | 10,000 trajectories per player per iteration, 20,000 total; alternating player updates |
 | Networks | Three branches per network; regret/policy 96-wide branches and 2×256 trunk; critics 96-wide branches and 2×192 trunk; calibration 64-wide branches and 2×128 trunk |
-| Regret replay | Capacity 1,000,000 per player, reset for each player collection batch |
-| Policy replay | 1,000,000-row reservoir |
+| Regret replay | Capacity 250,000 per player, reset for each player collection batch |
+| Policy replay | 2,000,000-row historical reservoir |
 | Critic replay | 1,000,000 transitions total, divided into two 500,000-row circular buffers |
 | Calibration replay | 1,000,000 rows |
 | Storage | Dense compact float32 replay, integer bookkeeping; no inherited FHP-only feature codebook |
@@ -118,10 +119,49 @@ it beneficial.
 
 **Leduc and FHP policy-fitting cadences differ.** Experiment 51 retained 20,000
 policy updates every iteration, whereas the selected FHP system only fits its
-policy at checkpoints. The new runner preserves checkpoint-only fitting and
-restores training RNG state after each policy fit. Its iteration checkpoint
-interval replaces the old experiment's six-active-hour schedule; it is configurable,
-and should be selected using a measured HUNL iteration cost.
+policy at checkpoints. The runner restores training RNG state after each policy
+fit. Its independent recovery/policy schedules exclude fitting, persistence and
+downtime from the clock. Schedule state is saved with full continuation. An
+explicit `--checkpoint-every` retains the older coupled iteration trigger.
+
+## Production training specification — November 2026
+
+These settings select one production learner, without a configuration sweep.
+The regret budget increases modestly from 750 to 1,000 updates; the FHP-derived
+critic and calibration budgets, learning rates, network sizes, sampling floor,
+fixed beta and four-fit target averaging are retained. This is a reasoned
+specification, not measured evidence of improved Hold'em strength.
+
+The game permits at most 23 decisions per hand. At 10,000 traversals, even
+counting every decision as a player-regret example gives at most 230,000 rows.
+The 250,000-row buffer retains the complete default collection batch. Reassess
+this bound before increasing traversals. Doubling historical policy replay while
+shrinking the two regret allocations changes dense replay array capacity from
+13,303,000,000 to 12,455,000,000 bytes. Grouping, fitting copies, workers, models
+and checkpoint buffers are additional memory.
+
+Each regret fit caches the previous frozen network's discounted/clipped outputs
+plus the sampled advantages. The cache consumes no RNG, is rebuilt for every
+fit, and is never checkpointed or reused after labels/targets change. Its size is
+12 bytes per occupied regret row (three float32 actions). Critic TD targets and
+collection both use uniform ties among maximum non-positive regrets; the
+critic fallback uses original signed regrets, not their zero-clamped values.
+
+Policy fitting groups complete canonical feature vectors before splitting them.
+A deterministic BLAKE2b hash assigns 5% of groups to validation, keeping identical
+information sets in one partition and membership stable across fits. Validation
+uses iteration-mass-weighted soft-target cross-entropy. The training optimizer
+never sees held-out groups during that fit. Checkpoints at 2,500, 5,000, 10,000
+and 20,000 updates are compared; exact ties prefer the earlier checkpoint.
+The selected model and corresponding Adam state are restored. This is model
+selection within one fit, not early termination or additional self-play runs.
+Small replays lacking either partition use all groups and explicitly mark
+validation unavailable. Metrics expose counts, all validation scores, selected
+update, and regret-cache cost. Validation is not an exploitability estimate.
+
+Fresh training is required because configuration and source fingerprints changed.
+Existing policy files remain playable. No long training or opponent-strength
+experiment is part of this implementation.
 
 ## HUNL-specific changes in this initial repository
 

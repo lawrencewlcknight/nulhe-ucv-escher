@@ -124,14 +124,12 @@ class CrossFittedQMember(PersistentFrozenTargetQValueTrainer):
         player_strategies = []
         for player in range(2):
             trainer = self.regret_trainers[player]
-            cumulative = torch.clamp(
-                trainer.predict(
+            raw_regrets = trainer.predict(
                     trainer.model,
                     next_states,
                     next_legal_actions_mask,
-                ),
-                min=0.0,
-            )
+                )
+            cumulative = torch.clamp(raw_regrets, min=0.0)
             if getattr(trainer, "predictor_enabled", False):
                 immediate = trainer.predict(
                     trainer.imm_model,
@@ -161,6 +159,14 @@ class CrossFittedQMember(PersistentFrozenTargetQValueTrainer):
                 torch.argmax(masked, dim=1),
                 self.output_size,
             ).to(scores.dtype)
+            if getattr(trainer, "uniform_regret_ties", False) and not getattr(trainer, "predictor_enabled", False):
+                legal = next_legal_actions_mask == 1
+                if trainer.use_regret_matching_argmax:
+                    raw_masked = raw_regrets.masked_fill(~legal, float("-inf"))
+                    tied = legal & (raw_masked == raw_masked.max(dim=1, keepdim=True).values)
+                else:
+                    tied = legal
+                fallback = tied.to(scores.dtype) / tied.sum(dim=1, keepdim=True).clamp_min(1)
             player_strategies.append(
                 torch.where(positive_sum > 0.0, normalised, fallback)
             )

@@ -47,14 +47,34 @@ class StructuredHULHERegretTrainer(_StructuredModelMixin, VRDCFRPlusRegretTraine
         feature_encoder: HULHEFeatureEncoder,
         branch_width: int,
         replay_seed: int,
+        cache_frozen_targets: bool = True,
+        uniform_regret_ties: bool = True,
         **kwargs,
     ):
         self.feature_encoder = feature_encoder
         self.feature_layout = feature_encoder.policy_layout
         self.structured_branch_width = int(branch_width)
         self.replay_seed = int(replay_seed)
+        self.cache_frozen_targets = cache_frozen_targets
+        self.uniform_regret_ties = uniform_regret_ties
         super().__init__(*args, **kwargs)
         self.predictor_enabled = False
+
+    def regret_matching(self, regrets, legal_actions):
+        if self.uniform_regret_ties and self.use_regret_matching_argmax:
+            values = np.asarray(regrets)[legal_actions]
+            if np.max(values) <= 0:
+                best = np.asarray(legal_actions)[values == np.max(values)]
+                policy = np.zeros_like(regrets)
+                policy[best] = 1.0 / len(best)
+                return policy
+        return super().regret_matching(regrets, legal_actions)
+
+    def train_model(self, iteration):
+        if not self.cache_frozen_targets:
+            return super().train_model(iteration)
+        from .holdem_fitting import fit_cached_regrets
+        return fit_cached_regrets(self, iteration)
 
     def get_infostate_tensor(self, state, player=None):
         return self.feature_encoder.information_state(state, player)
@@ -78,13 +98,21 @@ class StructuredHULHEAveragePolicyTrainer(
         feature_encoder: HULHEFeatureEncoder,
         branch_width: int,
         replay_seed: int,
+        validation_fraction: float = 0.05,
+        validation_steps=(2500, 5000, 10000, 20000),
         **kwargs,
     ):
         self.feature_encoder = feature_encoder
         self.feature_layout = feature_encoder.policy_layout
         self.structured_branch_width = int(branch_width)
         self.replay_seed = int(replay_seed)
+        self.validation_fraction = validation_fraction
+        self.validation_steps = tuple(validation_steps)
         super().__init__(*args, **kwargs)
+
+    def train_model(self, iteration):
+        from .holdem_fitting import fit_validated_policy
+        return fit_validated_policy(self, iteration)
 
     def get_infostate_tensor(self, state, player=None):
         return self.feature_encoder.information_state(state, player)
@@ -242,9 +270,17 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
         calibration_network_layers=None,
         calibration_branch_width: int | None = None,
         feature_encoder_id: str = ENCODER_ID,
+        cache_frozen_regret_targets: bool = True,
+        uniform_regret_ties: bool = True,
+        policy_validation_fraction: float = 0.05,
+        policy_validation_steps=(2500, 5000, 10000, 20000),
         **kwargs,
     ):
         self.feature_encoder = make_feature_encoder(feature_encoder_id)
+        self.cache_frozen_regret_targets = cache_frozen_regret_targets
+        self.uniform_regret_ties = uniform_regret_ties
+        self.policy_validation_fraction = policy_validation_fraction
+        self.policy_validation_steps = tuple(policy_validation_steps)
         self.structured_branch_width = int(structured_branch_width)
         # Optional overrides preserve the inherited architecture for callers
         # using the old constructor. The versioned baseline sets each explicitly.
@@ -306,6 +342,8 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
             feature_encoder=self.feature_encoder,
             branch_width=self.structured_branch_width,
             replay_seed=self.feature_replay_seed + 100,
+            validation_fraction=self.policy_validation_fraction,
+            validation_steps=self.policy_validation_steps,
         )
         random.setstate(rng_after_legacy["python"])
         np.random.set_state(rng_after_legacy["numpy"])
@@ -333,6 +371,8 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
                 feature_encoder=self.feature_encoder,
                 branch_width=self.structured_branch_width,
                 replay_seed=self.feature_replay_seed + 200 + player,
+                cache_frozen_targets=self.cache_frozen_regret_targets,
+                uniform_regret_ties=self.uniform_regret_ties,
             )
             for player in range(self.num_players)
         ]
