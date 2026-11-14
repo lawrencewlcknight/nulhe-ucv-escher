@@ -33,10 +33,14 @@ CARD_NAMES = (
     'transition_available',
     *(f'transition_{a}_to_{b}' for a in ('loss', 'tie', 'win')
       for b in ('loss', 'tie', 'win')),
+    'nut_flush_blocker',
+    'board_nuts_removed_fraction', 'board_nuts_legal_mass',
+    'runner_runner_straight', 'runner_runner_flush',
 )
 CARD_INDEX = {name: i for i, name in enumerate(CARD_NAMES)}
 PREFLOP_SAMPLES = 4096
 POSTFLOP_SAMPLES = 512
+BOARD_CACHE_SIZE = 64
 SAMPLING_ID = 'canonical_visible_cards_blake2b_pcg64_partial_fisher_yates_v1'
 _PAIRS = np.asarray(list(combinations(range(52), 2)), dtype=np.int16)
 _POWERS = np.asarray([15**i for i in range(4, -1, -1)], dtype=np.int32)
@@ -129,7 +133,36 @@ def _sample_completions(hole, board, count):
 
 
 def card_features(hole, board):
-    return _card_features(*canonical_cards(hole, board))
+    hole, board = canonical_cards(hole, board)
+    return _card_features(hole, board) if board else _preflop_features(hole)
+
+
+@lru_cache(maxsize=169)
+def _preflop_features(hole):
+    # Complete immutable vectors, including category and win/tie/loss channels,
+    # survive eviction from the general hand cache. Preserve the original sampler.
+    return _card_features(hole, ())
+
+
+def _board_key(hole, board):
+    # Board-first cache ordering is deliberately separate from the original
+    # own-first sampling key: existing sampled features must remain identical.
+    signatures = [(sum(1 << (c//4) for c in board if c % 4 == s),
+                   sum(1 << (c//4) for c in hole if c % 4 == s)) for s in range(4)]
+    order = sorted(range(4), key=lambda s: signatures[s], reverse=True)
+    return tuple(tuple(sorted(4*(c//4) + order.index(c % 4) for c in group))
+                 for group in (hole, board))
+
+
+@lru_cache(maxsize=BOARD_CACHE_SIZE)
+def _board_table(board):
+    hands = _PAIRS[~np.isin(_PAIRS, board).any(axis=1)]
+    ranks, categories, ties = rank_cards(np.column_stack((hands, np.tile(board, (len(hands), 1)))))
+    lookup = np.full((52,52), -1, dtype=np.int16)
+    lookup[hands[:,0], hands[:,1]] = np.arange(len(hands))
+    for value in (hands, ranks, categories, ties, lookup):
+        value.flags.writeable = False
+    return hands, ranks, categories, ties, lookup
 
 
 @lru_cache(maxsize=8192)
@@ -150,7 +183,10 @@ def _card_features(hole, board):
     put('future_cards_fraction', (5-len(board))/5)
     current = None
     if board:
-        current, cat, tie = rank_cards([all_cards])
+        table_hole, table_board = _board_key(hole, board)
+        hands, ranks, categories, ties, lookup = _board_table(table_board)
+        index = int(lookup[table_hole])
+        current, cat, tie = ranks[index:index+1], categories[index:index+1], ties[index:index+1]
         put('made_hand_available', 1)
         put('made_' + CATEGORIES[cat[0]], 1)
         for i, value in enumerate(tie[0]): put(f'tiebreak_{i}', value/14)
@@ -176,10 +212,15 @@ def _card_features(hole, board):
             put('board_flush_suit_hole_high', max(suited_hole, default=0)/14)
             put('board_flush_suit_hole_count', len(suited_hole)/2)
             put('board_flush_suit_ace_blocker', 14 in suited_hole)
+            highest_remaining = max(r for r in range(2,15) if 4*(r-2)+suit not in board)
+            put('nut_flush_blocker', highest_remaining in suited_hole)
         if len(board) == 5:
             put('plays_board', current[0] == rank_cards([board])[0][0])
-        opponents = _PAIRS[~np.isin(_PAIRS, all_cards).any(axis=1)]
-        other = rank_cards(np.column_stack((opponents, np.tile(board, (len(opponents), 1)))))[0]
+        legal = ~np.isin(hands, table_hole).any(axis=1)
+        nuts = ranks == ranks.max()  # Reference class BEFORE removing own cards.
+        put('board_nuts_removed_fraction', 1 - np.count_nonzero(nuts & legal)/nuts.sum())
+        put('board_nuts_legal_mass', np.count_nonzero(nuts & legal)/legal.sum())
+        other = ranks[legal]
         win, tie_p, loss = np.mean(current > other), np.mean(current == other), np.mean(current < other)
         for name, value in zip(('current_win','current_tie','current_loss','current_strength',
                                'currently_unbeatable','currently_strict_nuts'),
@@ -191,6 +232,16 @@ def _card_features(hole, board):
             put('next_card_available', 1)
             for i, mass in enumerate(np.bincount(next_cat, minlength=9)/len(next_cards)):
                 put('next_card_' + CATEGORIES[i], mass)
+            if len(board) == 3:
+                runouts = _PAIRS[~np.isin(_PAIRS, all_cards).any(axis=1)]
+                mask = int(((counts > 0) * _BITS).sum())
+                r0, r1 = runouts[:, 0]//4, runouts[:, 1]//4
+                both = _STRAIGHT[mask | _BITS[r0] | _BITS[r1]] > 0
+                neither = (_STRAIGHT[mask | _BITS[r0]] == 0) & (_STRAIGHT[mask | _BITS[r1]] == 0)
+                put('runner_runner_straight', np.mean(both & neither))
+                suits_all = np.bincount(np.asarray(all_cards) % 4, minlength=4)
+                s0, s1 = runouts[:, 0] % 4, runouts[:, 1] % 4
+                put('runner_runner_flush', np.mean((s0 == s1) & (suits_all[s0] == 3)))
     if len(board) == 5:
         for name, value in zip(('showdown_win','showdown_tie','showdown_loss','showdown_equity'),
                               (win,tie_p,loss,win+.5*tie_p)): put(name,value)
@@ -215,7 +266,8 @@ def _card_features(hole, board):
             now = np.sign(current[0] - other_now)
             transition = np.bincount((now+1)*3 + result+1, minlength=9)/n
             put('transition_available', 1)
-            out[-9:] = transition
+            start = CARD_INDEX['transition_loss_to_loss']
+            out[start:start+9] = transition
     out.flags.writeable = False
     return out
 
@@ -227,6 +279,11 @@ def feature_spec():
             'showdown': 'exact river; deterministic sampled future elsewhere',
             'preflop_samples': PREFLOP_SAMPLES, 'postflop_samples': POSTFLOP_SAMPLES,
             'sampling_id': SAMPLING_ID, 'card_cache_entries': 8192,
+            'board_cache_entries': BOARD_CACHE_SIZE,
+            'preflop_vector_cache_entries': 169,
+            'board_nuts': 'strongest board-compatible holdings before own-card removal; removed fraction and remaining legal mass',
+            'runner_runner': 'exact flop pattern completions requiring both future cards; not clean winning outs; zero otherwise',
+            'nut_flush_blocker': 'highest suited rank absent from board; ace blocker remains separate',
             'transition': 'joint current-to-showdown loss/tie/win mass; flop/turn only'}
 
 

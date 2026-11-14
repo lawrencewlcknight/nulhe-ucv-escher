@@ -12,7 +12,10 @@
   "ave_policy_batch_size": 2048,
   "baseline_batch_size": 2048,
   "num_layers": 2,
-  "num_hiddens": 128,
+  "num_hiddens": 256,
+  "critic_network_layers": [192, 192],
+  "calibration_network_layers": [128, 128],
+  "calibration_branch_width": 64,
   "reinitialize_advantage_networks": false,
   "reinitialize_imm_regret_networks": true,
   "use_regret_matching_argmax": true,
@@ -55,8 +58,8 @@
   "average_policy_loss": "grouped_soft_target_cross_entropy",
   "average_policy_reset_each_fit": true,
   "average_policy_network_layers": [
-    192,
-    192
+    256,
+    256
   ],
   "average_policy_learning_rate": 0.003,
   "average_policy_train_steps": 20000,
@@ -67,7 +70,7 @@
   ],
   "paired_legacy_learning_rate": 0.001,
   "paired_legacy_train_steps": 5000,
-  "structured_branch_width": 64,
+  "structured_branch_width": 96,
   "cache_frozen_critic_targets": true,
-  "feature_encoder_id": "hulhe_strategic_limit_v3"
+  "feature_encoder_id": "hulhe_strategic_limit_v5"
 }

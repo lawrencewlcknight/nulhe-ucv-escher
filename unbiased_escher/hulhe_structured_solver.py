@@ -238,14 +238,29 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
         self,
         *args,
         structured_branch_width: int = 64,
+        critic_network_layers=None,
+        calibration_network_layers=None,
+        calibration_branch_width: int | None = None,
         feature_encoder_id: str = ENCODER_ID,
         **kwargs,
     ):
         self.feature_encoder = make_feature_encoder(feature_encoder_id)
         self.structured_branch_width = int(structured_branch_width)
+        # Optional overrides preserve the inherited architecture for callers
+        # using the old constructor. The versioned baseline sets each explicitly.
+        self.critic_network_layers = (
+            None if critic_network_layers is None else list(critic_network_layers)
+        )
+        self.calibration_network_layers = (
+            None if calibration_network_layers is None else list(calibration_network_layers)
+        )
+        self.calibration_branch_width = (
+            self.structured_branch_width if calibration_branch_width is None
+            else int(calibration_branch_width)
+        )
         self.feature_replay_seed = int(kwargs.get("seed", 0))
-        if self.structured_branch_width <= 0:
-            raise ValueError("structured_branch_width must be positive")
+        if min(self.structured_branch_width, self.calibration_branch_width) <= 0:
+            raise ValueError("Structured branch widths must be positive")
         super().__init__(*args, **kwargs)
         if self.average_policy_loss != GROUPED_SOFT_TARGET_CROSS_ENTROPY:
             raise ValueError("The structured experiment requires grouped policy CE")
@@ -332,7 +347,8 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
             history_size=self.feature_encoder.full_state_size,
             state_size=self.feature_encoder.policy_size,
             action_size=self.action_size,
-            network_layers=self.network_layers,
+            network_layers=(self.network_layers if self.critic_network_layers is None
+                            else self.critic_network_layers),
             learning_rate=self.learning_rate,
             total_buffer_size=self.baseline_buffer_size,
             batch_size=self.baseline_batch_size,
@@ -347,7 +363,8 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
         self.calibration_trainer = StructuredHULHEResidualCalibrationTrainer(
             infostate_size=self.infostate_size,
             action_size=self.action_size,
-            hidden_layers=self.network_layers,
+            hidden_layers=(self.network_layers if self.calibration_network_layers is None
+                           else self.calibration_network_layers),
             learning_rate=self.calibration_learning_rate,
             buffer_size=self.calibration_buffer_size,
             batch_size=self.calibration_batch_size,
@@ -355,7 +372,7 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
             device=self.device,
             minimum_variance=self.calibration_minimum_variance,
             feature_encoder=self.feature_encoder,
-            branch_width=self.structured_branch_width,
+            branch_width=self.calibration_branch_width,
         )
 
     def get_infostate_tensor(self, state, player=None):

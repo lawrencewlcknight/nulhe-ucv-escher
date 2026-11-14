@@ -14,7 +14,9 @@ from .game import GAME_CONTRACT_ID, NUM_ACTIONS, load_hulhe_game, validate_hulhe
 from vr_deep_cfr.solver import SonnetLinear, ZeroInitLinear
 
 LEGACY_ENCODER_ID = "hulhe_suit_canonical_limit_v2"
-ENCODER_ID = "hulhe_strategic_limit_v3"
+STRATEGIC_V3_ENCODER_ID = "hulhe_strategic_limit_v3"
+STRATEGIC_V4_ENCODER_ID = "hulhe_strategic_limit_v4"
+ENCODER_ID = "hulhe_strategic_limit_v5"
 
 
 @dataclass(frozen=True)
@@ -140,24 +142,26 @@ class LegacyHULHEFeatureEncoder:
                                self._context(state, raw[player], count))).astype(np.float32)
 
 
-class HULHEFeatureEncoder(LegacyHULHEFeatureEncoder):
+class StrategicV3HULHEFeatureEncoder(LegacyHULHEFeatureEncoder):
     """Exact information state plus strategic summaries; no lossy bucketing."""
-    encoder_id = ENCODER_ID
+    encoder_id = STRATEGIC_V3_ENCODER_ID
+    version = 3
+    from . import legacy_card_features as card_module
 
     def __init__(self):
         super().__init__()
-        from .card_features import CARD_NAMES
+        CARD_NAMES = self.card_module.CARD_NAMES
         from .betting_features import BETTING_NAMES
-        self.policy_layout = FeatureLayout("strategic_player_v3",
+        self.policy_layout = FeatureLayout(f"strategic_player_v{self.version}",
             285 + len(CARD_NAMES) + len(BETTING_NAMES), 208, len(CARD_NAMES))
-        self.full_state_layout = FeatureLayout("strategic_critic_v3",
+        self.full_state_layout = FeatureLayout(f"strategic_critic_v{self.version}",
             337 + 2*len(CARD_NAMES) + 2*len(BETTING_NAMES) + 4,
             260, 2*len(CARD_NAMES) + 4)
 
     def metadata(self):
-        from .card_features import feature_spec
+        feature_spec = self.card_module.feature_spec
         from .betting_features import BETTING_NAMES
-        return {**super().metadata(), "version": 3,
+        return {**super().metadata(), "version": self.version,
                 "base_encoder_id": LEGACY_ENCODER_ID,
                 "strategic_cards": feature_spec(), "betting_features": list(BETTING_NAMES),
                 "feature_order": "canonical cards; strategic cards; player/history/street; economics; legal mask",
@@ -173,7 +177,7 @@ class HULHEFeatureEncoder(LegacyHULHEFeatureEncoder):
         return tuple(sorted(map(int, 4*ranks+suits)))
 
     def information_state(self, state, player=None):
-        from .card_features import card_features
+        card_features = self.card_module.card_features
         from .betting_features import public_rounds, betting_features
         player = state.current_player() if player is None else int(player)
         if player not in (0,1) or state.is_chance_node() or state.is_terminal():
@@ -188,7 +192,7 @@ class HULHEFeatureEncoder(LegacyHULHEFeatureEncoder):
                                context[:-3], economics, context[-3:])).astype(np.float32)
 
     def full_state(self, state):
-        from .card_features import card_features, critic_comparison
+        card_features, critic_comparison = self.card_module.card_features, self.card_module.critic_comparison
         from .betting_features import public_rounds, betting_features
         self._validate_state_game(state)
         if state.is_terminal():
@@ -210,7 +214,23 @@ class HULHEFeatureEncoder(LegacyHULHEFeatureEncoder):
                                context[:-3], *economics, context[-3:])).astype(np.float32)
 
 
+class StrategicV4HULHEFeatureEncoder(StrategicV3HULHEFeatureEncoder):
+    encoder_id = STRATEGIC_V4_ENCODER_ID
+    version = 4
+    from . import v4_card_features as card_module
+
+
+class HULHEFeatureEncoder(StrategicV3HULHEFeatureEncoder):
+    encoder_id = ENCODER_ID
+    version = 5
+    from . import card_features as card_module
+
+
 def make_feature_encoder(encoder_id=ENCODER_ID):
+    if encoder_id == STRATEGIC_V4_ENCODER_ID:
+        return StrategicV4HULHEFeatureEncoder()
+    if encoder_id == STRATEGIC_V3_ENCODER_ID:
+        return StrategicV3HULHEFeatureEncoder()
     if encoder_id == LEGACY_ENCODER_ID:
         return LegacyHULHEFeatureEncoder()
     if encoder_id == ENCODER_ID:

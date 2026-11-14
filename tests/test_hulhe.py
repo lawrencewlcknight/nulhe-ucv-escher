@@ -169,9 +169,11 @@ def test_complete_state_resume_matches_uninterrupted(tmp_path):
     expected = model_states(solver)
     expected_nodes = solver.nodes_touched
     # Derived features must regenerate identically after a cold process restart.
-    from hulhe_escher.card_features import _card_features, critic_comparison
+    from hulhe_escher.card_features import _card_features, _preflop_features, _board_table, critic_comparison
     from hulhe_escher.betting_features import _public_economics
     _card_features.cache_clear()
+    _preflop_features.cache_clear()
+    _board_table.cache_clear()
     critic_comparison.cache_clear()
     _public_economics.cache_clear()
     restored = make_solver(config, seed=43)
@@ -192,6 +194,50 @@ def test_repo_has_no_historical_experiments_and_baseline_is_reduced():
     assert config["baseline_network_train_steps"] == 2500
     assert config["average_policy_train_steps"] == 20000
     assert config["cache_frozen_critic_targets"] is True
+
+
+def test_recommended_network_capacity_and_independent_critic_calibration():
+    solver = make_solver(smoke_config())
+    groups = [
+        ([t.model for t in solver.regret_trainers], 96, [256, 256], 180867),
+        ([solver.ave_policy_trainer.model], 96, [256, 256], 180867),
+        ([m.model for m in solver.q_value_trainer.members], 96, [192, 192], 151491),
+        ([solver.calibration_trainer.model], 64, [128, 128], 68738),
+    ]
+    total = 0
+    for models, branch, hidden, parameters in groups:
+        for model in models:
+            assert model.branch_width == branch
+            assert model.hidden_layers == hidden
+            count = sum(p.numel() for p in model.parameters())
+            assert count == parameters
+            total += count
+    assert total == 914321
+
+    # Changing regret capacity must not silently resize either control network.
+    config = smoke_config()
+    config.update(num_hiddens=32, num_layers=1)
+    resized = make_solver(config)
+    assert resized.regret_trainers[0].model.hidden_layers == [32]
+    for original, independent in zip(
+        [solver.calibration_trainer.model, solver.q_value_trainer.members[0].model],
+        [resized.calibration_trainer.model, resized.q_value_trainer.members[0].model],
+        strict=True,
+    ):
+        assert {k: v.shape for k, v in original.state_dict().items()} == {
+            k: v.shape for k, v in independent.state_dict().items()
+        }
+
+
+@pytest.mark.parametrize("key,value", [
+    ("critic_network_layers", []), ("calibration_network_layers", [128, 0]),
+    ("calibration_branch_width", -1), ("num_hiddens", 0),
+])
+def test_invalid_network_dimensions_rejected(key, value):
+    config = smoke_config()
+    config[key] = value
+    with pytest.raises(ValueError, match=key):
+        make_solver(config)
 
 
 def test_cli_checkpoint_cadence_and_resume(tmp_path):

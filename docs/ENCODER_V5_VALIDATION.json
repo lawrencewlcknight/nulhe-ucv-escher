@@ -1,0 +1,75 @@
+{
+  "date": "2026-11-15",
+  "encoder_version": 5,
+  "tests": {
+    "offline_passed": 53,
+    "offline_skipped": 8,
+    "separate_ray_passed": 1
+  },
+  "alignment": {
+    "date": "2026-11-15",
+    "random_rank_hands": 30000,
+    "random_card_cases": 800,
+    "shared_card_channels": 51,
+    "legacy_prefixes_identical": true,
+    "preflop_holdings": 1326,
+    "preflop_classes": 169,
+    "equity_and_se_identical": true,
+    "matched_full_game_hands": 60,
+    "matched_decision_states": 612,
+    "matched_checks": [
+      "exact policy and critic cards",
+      "critic comparison",
+      "street raise counts and aggressors",
+      "actor check/call street closure"
+    ],
+    "shared_fixture_sha256": "52918b705d4ac6e8c9fcb826bfff0c598a41fca47e67dd999f0e5eb32e3ce2f7",
+    "input_sizes": {
+      "limit": [
+        417,
+        605
+      ],
+      "no_limit": [
+        569,
+        688
+      ]
+    }
+  },
+  "feature_cost": {
+    "kind": "feature_microbenchmark_not_training_throughput",
+    "machine": "arm64",
+    "python": "3.12.2",
+    "seed": 20261115,
+    "hands": 100,
+    "results": {
+      "limit": {
+        "decisions": 800,
+        "seconds": {
+          "v4_first": 3.30752274999395,
+          "v4_repeated": 0.1660180001053959,
+          "v5_first": 3.4927740830462426,
+          "v5_repeated": 0.19335120893083513
+        }
+      },
+      "no_limit": {
+        "decisions": 800,
+        "seconds": {
+          "v4_first": 0.7569649170618504,
+          "v4_repeated": 0.10432808299083263,
+          "v5_first": 0.7252524169161916,
+          "v5_repeated": 0.11892929102759808
+        }
+      }
+    }
+  },
+  "online_parameters": 914321,
+  "additional_dense_replay_bytes_including_calibration": 144000000,
+  "scope": "Local correctness, compatibility and feature-cost checks; no long training, playing-strength claim, or full-training throughput measurement. Single timing stream per version; ordering and noise can affect timing.",
+  "source_sha256": {
+    "hulhe_escher/card_features.py": "b08f858c3a90ee074916f43aa3003bf8d5de4bdd7d4ff018ef1cce92ffb27048",
+    "hulhe_escher/features.py": "985f5d2c0346288a8acb783ad34dabb90231b5ee0ad2ab40f0ce05aa47884aa3",
+    "hulhe_escher/data/baseline.json": "772e0a4108861f1ac54876db702359ed85ac09c4226c6f7f3524c5361fc4b667",
+    "tests/test_encoder_v5.py": "dc459ae410ab7a6d434de4db3980d4d61e1173457ab0831bb3f5f39f907b19c1",
+    "tests/fixtures/encoder_v4_metadata.json": "16d542c43b36b6319ae9f1826d77d7af32857f5ec0706589889bcca7ad9d1fb5"
+  }
+}

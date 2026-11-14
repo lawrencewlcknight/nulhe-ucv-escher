@@ -4,6 +4,59 @@ The current suite validates the fixed-limit game and the learner boundary.
 The opt-in opponent suite tests the actual pinned Java core and strategy tables.
 These are integration checks, not a playing-strength benchmark.
 
+## Encoder v5 validation — 2026-11-15
+
+* Offline suite: **53 passed, 8 skipped**; skips are opt-in Ray/Fell Omen 2 tests.
+* Real two-worker collection and exact continuation: **1 passed** separately.
+* Independent enumeration verifies general nuts-removal and exact flop backdoor
+  completions. All 1,326 preflop holdings retain every original v4 value; the
+  complete 169-class cache survives eviction from the general hand cache.
+* Frozen v4 metadata and nonzero saved-policy predictions are preserved. V5
+  continuation passes with cold caches; continuation from older layouts is rejected.
+* Cross-repository audit: 30,000 ranked hands, 800 random card cases with 51 shared
+  channels, all 169 preflop equity classes, and 612 decisions across 60 matched
+  full hands agree. Shared fixtures pass independently in each repository.
+* Single matched 100-hand/800-decision timing: v4/v5 policy-plus-critic encoding
+  took 4.134/4.366 ms per decision on the first pass and 0.208/0.242 ms on the
+  repeated pass. These local measurements include within-hand reuse and are
+  not training-throughput or playing-strength evidence.
+* Widths and fitting budgets are unchanged. Default online parameters total
+  914,321; dense replay growth is 144 MB including calibration. Details and raw
+  measurements: [ENCODER_V5_VALIDATION.json](docs/ENCODER_V5_VALIDATION.json).
+
+## Encoder v4 validation — 2026-11-15
+
+* Offline suite: **44 passed**, with the opt-in Ray/Fell Omen 2 tests skipped.
+* Real two-actor collection and exact continuation: **1 passed** separately.
+* Board caching preserves every original v3 card descriptor bit-for-bit,
+  including sampled equity and transitions, across 80 random card states.
+* Tests check shared board-cache hits, immutable arrays, general nut-flush versus
+  ace blockers, preserved v3 policy predictions, and cold-cache continuation.
+* Shared fixture: 193 cases including all 169 preflop suit classes, identical
+  to the fixture tested independently by the no-limit repository.
+* Version 0.5.0 wheel built without downloads, installed separately, and passed
+  a smoke iteration, policy fit and checkpoint reload outside the checkout.
+* Matched 100-hand/800-decision audit: policy-plus-critic encoding changed from
+  5.169 to 4.321 ms on the first pass; repeated passes were both about 0.210 ms.
+  These are feature-construction measurements with within-hand cache reuse,
+  not training throughput or playing strength. See
+  [ENCODER_V4_VALIDATION.json](docs/ENCODER_V4_VALIDATION.json).
+
+## Network capacity validation — 2026-11-14
+
+* Standard suite: **40 passed, 8 skipped** in 16.34 seconds. The skipped tests
+  were the opt-in Ray and Fell Omen 2 suites.
+* Real two-actor collection and exact parallel continuation: **1 passed** in
+  17.83 seconds, outside the macOS process-inspection sandbox.
+* Verified all six online networks' dimensions and their combined **910,641**
+  trainable parameters. Regret sizing no longer resizes the critics or calibration.
+  Invalid configured dimensions are rejected before construction.
+* The standard suite trains the recommended architecture with reduced budgets,
+  fits/reloads its policy, compares cached and uncached learning, and checks exact
+  continuation both directly and through the CLI. Older policy format coverage
+  also passes. Learning budgets and replay dimensions are unchanged.
+* No long training run or playing-strength evaluation was performed for this change.
+
 ## Strategic representation validation — 2026-11-14
 
 * V3 feature suite plus existing game/learner/opponent tests: **42 passed**, with

@@ -1,5 +1,65 @@
 # Hold'em strategic representation review
 
+## Current v5: inexpensive blocker and backdoor features
+
+The default `hulhe_strategic_limit_v5` has **417 policy / 605 critic inputs**.
+V5 preserves all 91 v4 card channels exactly and appends four features per player:
+
+* Fraction of board-compatible strongest holdings removed by our cards, and the
+  mass of that original strongest class among legal opponent holdings. The class
+  is defined before own-card removal, so blocking every member yields zero
+  remaining mass instead of silently redefining the nuts.
+* Exact flop runner-runner straight and flush completion fractions, requiring
+  both remaining cards. These are structural draws, not probabilities of winning;
+  they are zero before the flop and on turn/river.
+
+The existing board table supplies blocker rankings. Backdoor calculations use
+1,081 legal unordered runouts and rank/suit patterns, without additional opponent
+or future-hand equity evaluations. The full immutable preflop descriptor vector
+is retained in a dedicated 169-entry cache, independent of the general hand
+cache. First-use sampling is unchanged; repeated preflop sampling after general
+cache eviction is eliminated. All existing equity/category/transition estimates
+are bit-for-bit preserved.
+
+These features make exact relationships available to the network without
+increasing hidden widths, depth, fitting budgets or introducing a new estimator.
+Default dense replay grows by **144 MB** including calibration; online parameters
+increase by 2,944 to **914,321**. Improvement in playing strength remains unmeasured.
+
+V5 requires fresh training. Saved v2/v3/v4 policies remain playable with their
+original feature contracts; v4 computations are frozen in `v4_card_features.py`.
+The shared v2 card fixture adds independent cross-repository checks for all new
+blockers/backdoors and the strict-current-nuts feature.
+
+
+## Historical v4: transfers from the no-limit encoder
+
+The default is `hulhe_strategic_limit_v4`: **413 policy inputs and 597 critic
+inputs**. It retains every v3 descriptor, including the same sampled equity and
+transition values, and appends one general nut-flush blocker per perspective.
+This flags possession of the highest suited rank absent from a threatening
+three-or-more-card board suit. For example K-clubs is flagged on A-clubs/7-clubs/
+2-clubs. The original ace-blocker feature remains separate and unchanged.
+
+A bounded 64-entry cache now ranks all board-compatible holdings once and reuses
+the table across own hands. A board-first cache key improves reuse; the existing
+own-first sampling key is deliberately retained. This optimization must not alter
+the sampled showdown statistics. Tables are immutable and derived entirely from
+public cards; own cards only filter the compatible-opponent holdings afterwards.
+
+The three-branch network architecture and fitting budgets remain unchanged.
+Dense replay grows by **36,000,000 bytes** at default capacities including
+calibration; online model parameters rise from 910,641 to **911,377**.
+
+Saved v2/v3 policies retain their original encoder metadata and feature semantics
+for evaluation. V4 requires fresh training; old replay and optimiser continuation
+states are rejected. The original v3 card module is frozen as
+`legacy_card_features.py`. The identical shared fixture
+`tests/fixtures/holdem_card_contract_v1.json` in both Hold'em repositories locks
+common card features and all 169 preflop equity classes to the same values.
+
+## Historical v3 design and measurements
+
 The v2 Hold'em encoder preserved information, but required networks to rediscover
 hand rankings, draw structure and pot arithmetic from sparse card/history bits.
 FHP Experiment 36's selected AE representation already supplied exact hand/board
@@ -91,12 +151,15 @@ Neither paper establishes that this particular implementation is optimal.
 
 ## Network and learning decisions
 
-Each structured network has three 64-wide branches: exact cards, strategic card
-summaries, and betting context. Their outputs feed the existing hidden trunk.
+Each structured network has three branches: exact cards, strategic card
+summaries, and betting context. Their outputs feed a shared hidden trunk.
 This prevents the new strategic descriptors from sharing a single narrow input
-projection with all betting history. The average-policy trunk remains 192/192;
-regret and critic trunks remain 128/128. Calibration uses the same representation
-and preserves its existing action/control-variate fields in the context branch.
+projection with all betting history. Following the capacity review, regret and
+average policy use 96-wide branches and a 256/256 trunk; critics use 96-wide
+branches and a 192/192 trunk. Calibration retains 64-wide branches and a 128/128
+trunk, with its existing action/control-variate fields in the context branch.
+See [the baseline](BASELINE.md#current-hulhe-network-capacity) for parameter
+counts, configuration keys and the evidence behind these choices.
 
 The unbiased UCV estimator, cross-fit critics, cached targets, target averaging,
 exploration floor, regret updates, grouped average-policy loss and numerical

@@ -1,4 +1,4 @@
-"""Selected source learning settings and deliberately small engineering smoke."""
+"""HULHE learning settings and reduced-budget, full-architecture smoke runs."""
 from copy import deepcopy
 import json
 from pathlib import Path
@@ -34,9 +34,17 @@ def validate_config(config):
                 "calibration_buffer_size", "num_traversals", "advantage_batch_size",
                 "ave_policy_batch_size", "baseline_batch_size", "calibration_batch_size",
                 "advantage_network_train_steps", "baseline_network_train_steps",
-                "calibration_train_steps", "average_policy_train_steps"):
+                "calibration_train_steps", "average_policy_train_steps",
+                "num_layers", "num_hiddens", "structured_branch_width",
+                "calibration_branch_width"):
         if type(config[key]) is not int or config[key] <= 0:
             raise ValueError(f"{key} must be a positive integer")
+    for key in ("critic_network_layers", "calibration_network_layers",
+                "average_policy_network_layers", "paired_legacy_network_layers"):
+        widths = config[key]
+        if (not isinstance(widths, list) or not widths
+                or any(type(width) is not int or width <= 0 for width in widths)):
+            raise ValueError(f"{key} must be a nonempty list of positive integers")
     if config["game_name"] != "HULHE" or config["feature_encoder_id"] != ENCODER_ID:
         raise ValueError("Use the versioned HULHE game and encoder")
     if config["q_ensemble_size"] != 2 or config["use_instantaneous_predictor"]:

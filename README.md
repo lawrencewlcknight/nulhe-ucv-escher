@@ -15,12 +15,16 @@ The game interface uses **OpenSpiel 1.6.3 `universal_poker`**:
 * Independent, rake-free hands with nonbinding bankrolls. Returns are chips;
   divide by 100 for small bets (big blinds), or 200 for big bets.
 
-The strategic encoder supplies **412 policy inputs** and **595 critic inputs**.
+The strategic encoder supplies **417 policy inputs** and **605 critic inputs**.
 It preserves exact cards and betting history, and adds hand strength, draw
 potential, board texture, pot odds and betting interactions. Three network
 branches process exact cards, strategic card descriptors and betting context.
 See [the representation review](docs/STRATEGIC_FEATURES.md) for exact versus sampled
 statistics, costs and design choices. Learning objectives and budgets are unchanged.
+Regret and average-policy networks use 96-wide input branches and a 256/256
+hidden trunk; critics use 96 and 192/192; calibration retains 64 and 128/128.
+The six online networks total 914,321 trainable parameters. See the
+[capacity specification](docs/BASELINE.md#current-hulhe-network-capacity).
 See [the game-interface specification](docs/GAME_INTERFACE.md) for evidence,
 seat conventions and the complete feature layout.
 
@@ -57,7 +61,7 @@ RUN_RAY_TESTS=1 python -m pytest -q -m ray
 ```
 
 Smoke reduces replay, minibatch and optimiser budgets; it is not evidence of
-playing strength. Tests exercise real OpenSpiel and PyTorch. Ray tests start
+playing strength. It uses the full baseline network sizes. Tests exercise real OpenSpiel and PyTorch. Ray tests start
 real local worker processes and are opt-in.
 
 The inherited learning budget is in
@@ -98,10 +102,10 @@ The HUNL source history is retained in this independent local repository. No
 remote is configured. Ignored outputs, checkpoints, environments and build caches
 were not copied. The source HUNL repository is untouched.
 
-The default encoder is `hulhe_strategic_limit_v3`. Policy checkpoint format 2
-supports both this encoder and the original fixed-limit v2 encoder for evaluation.
+The default encoder is `hulhe_strategic_limit_v5`. Policy checkpoint format 2
+supports v5 and the original fixed-limit v2/v3/v4 encoders for evaluation.
 Full continuation checks the exact game and encoder: **start fresh training for
-v3**. Old v2 replay cannot be reused. HUNL/preparation-copy policies remain rejected.
+v5**. Old v2/v3/v4 replay cannot be reused. HUNL/preparation-copy policies remain rejected.
 
 ## Play a checkpoint against Fell Omen 2
 

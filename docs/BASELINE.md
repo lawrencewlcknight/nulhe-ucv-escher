@@ -1,10 +1,47 @@
 # Inherited UCV-ESCHER baseline
 
 This document describes the source HUNL implementation and its evidence. The
-HULHE project retains the learner settings, but has replaced the no-limit game
+HULHE project retains the learning objectives and update budgets, but has replaced the no-limit game
 and encoder with the [fixed-limit interface](GAME_INTERFACE.md). The HUNL-specific
 section below is historical and does not describe the current game.
 Package references below use the new namespace.
+
+## Current HULHE network capacity
+
+The November 2026 capacity review selects the following sizes for fresh runs.
+Each network has separate exact-card, strategic-card and betting-context input
+branches, followed by the shared hidden trunk and output layer.
+
+| Network | Width of each input branch | Shared hidden layers | Parameters per online network |
+|---|---:|---|---:|
+| Regret (two players) | 96 | 256, 256 | 180,867 |
+| Average policy | 96 | 256, 256 | 180,867 |
+| Critics (two cross-fit members) | 96 | 192, 192 | 151,491 |
+| Calibration | 64 | 128, 128 | 68,738 |
+
+This is three hidden layers on each input-to-output path. Total online trainable
+capacity is **914,321 parameters**, up from 911,377 with encoder v4; frozen targets, temporal
+snapshots and optimiser state are additional. V5 adds four policy inputs and eight critic inputs; replay capacities
+are unchanged. Smoke uses the same architecture with smaller sampling and fit budgets.
+
+`num_hiddens` and `num_layers` now control the regret trunk independently of
+`critic_network_layers`, `calibration_network_layers` and the existing
+`average_policy_network_layers`. `structured_branch_width` controls regret,
+policy and critic branches; `calibration_branch_width` keeps calibration at 64.
+All these dimensions are validated before solver construction.
+
+The rationale is a moderate capacity increase for four-street Hold'em while
+keeping the frequently evaluated calibration model small. This is a practical
+starting point, not a demonstrated optimum. Relevant comparisons are ESCHER's
+[released 256/128 defaults](https://github.com/Sandholm-Lab/ESCHER/blob/main/ESCHER.py),
+[VR-Deep's 3x128 flop-Hold'em experiment](https://arxiv.org/html/2511.08174v1),
+and [Deep CFR's deeper structured architecture](https://proceedings.mlr.press/v97/brown19b/brown19b-supp.pdf).
+Flop-only results do not validate full-Hold'em capacity.
+
+Start a fresh output directory after this change. Full continuation requires
+matching source and configuration and cannot resize trained weights or Adam
+state. Existing playable policy checkpoints retain their saved dimensions and
+remain loadable for evaluation without conversion.
 
 ## Decision
 
@@ -70,7 +107,7 @@ it beneficial.
 | Average policy | Grouped soft-target cross entropy; iteration weighting gamma 2; reset each fit; 20,000 updates; batch 2,048; LR 0.003 |
 | Policy fit cadence | Checkpoints only, preserving the FHP approach; the initial runner uses completed-iteration checkpoints (50 by default), plus the final endpoint |
 | Collection | 10,000 trajectories per player per iteration, 20,000 total; alternating player updates |
-| Networks | Separate 64-wide card/context branches; 2×128 trunk for regret, critics and calibration; 2×192 trunk for average policy |
+| Networks | Three branches per network; regret/policy 96-wide branches and 2×256 trunk; critics 96-wide branches and 2×192 trunk; calibration 64-wide branches and 2×128 trunk |
 | Regret replay | Capacity 1,000,000 per player, reset for each player collection batch |
 | Policy replay | 1,000,000-row reservoir |
 | Critic replay | 1,000,000 transitions total, divided into two 500,000-row circular buffers |

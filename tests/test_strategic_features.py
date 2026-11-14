@@ -103,7 +103,7 @@ def test_sampler_is_legal_deterministic_and_does_not_touch_global_rng():
         assert sum(f[CARD_INDEX[n]] for n in ('showdown_win','showdown_tie','showdown_loss')) == pytest.approx(1)
         assert sum(f[CARD_INDEX['showdown_category_'+c]] for c in
                    ('high_card','pair','two_pair','trips','straight','flush','full_house','quads','straight_flush')) == pytest.approx(1)
-        if len(board) in (3,4): assert f[-9:].sum() == pytest.approx(1)
+        if len(board) in (3,4): assert f[CARD_INDEX['transition_loss_to_loss']:CARD_INDEX['transition_loss_to_loss']+9].sum() == pytest.approx(1)
         key = canonical_cards(hole,board)
         expected = f.copy()
         _card_features.cache_clear()
@@ -133,7 +133,7 @@ def test_all_suit_permutations_and_flop_order_keep_same_features():
     t=state_at_street(3,holes=(48,45,2,7),board=(28,0,20,34,39))
     np.testing.assert_array_equal(e.information_state(t),expected)
     # Critic's player-1 strategic block equals that player's isolated policy block.
-    np.testing.assert_array_equal(critic[350:440],expected[208:298])
+    np.testing.assert_array_equal(critic[355:450],expected[208:303])
 
 
 def test_exact_information_channels_are_preserved_and_history_matters():
@@ -141,10 +141,10 @@ def test_exact_information_channels_are_preserved_and_history_matters():
     for st in range(4):
         s=state_at_street(st)
         a,b=old.information_state(s),new.information_state(s)
-        np.testing.assert_array_equal(a,np.concatenate((b[:208],b[298:372],b[-3:])))
+        np.testing.assert_array_equal(a,np.concatenate((b[:208],b[303:377],b[-3:])))
         a,b=old.full_state(s),new.full_state(s)
-        np.testing.assert_array_equal(a,np.concatenate((b[:260],b[444:518],b[-3:])))
-    assert new.policy_size == 412 and new.full_state_size == 595
+        np.testing.assert_array_equal(a,np.concatenate((b[:260],b[454:528],b[-3:])))
+    assert new.policy_size == 417 and new.full_state_size == 605
 
 
 def test_economics_all_betting_paths_and_blind_option():
