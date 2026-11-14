@@ -7,11 +7,11 @@ import numpy as np
 import pytest
 import torch
 
-from hunl_escher.config import baseline_config, smoke_config, make_solver
-from hunl_escher.features import HUNLFeatureEncoder
-from hunl_escher.game import HUNL_GAME_PARAMETERS, load_hunl_game
-from hunl_escher.checkpointing import save_policy_checkpoint, LoadedHUNLPolicy
-from hunl_escher.training_state import build_training_state, restore_training_state, save_training_state, read_training_state
+from hulhe_escher.config import baseline_config, smoke_config, make_solver
+from hulhe_escher.features import HULHEFeatureEncoder
+from hulhe_escher.game import HULHE_GAME_PARAMETERS, load_hulhe_game
+from hulhe_escher.checkpointing import save_policy_checkpoint, LoadedHULHEPolicy
+from hulhe_escher.training_state import build_training_state, restore_training_state, save_training_state, read_training_state
 from unbiased_escher.estimator import control_variate_advantage, residual_adaptive_sampling_policy
 
 
@@ -21,7 +21,7 @@ def single_thread():
 
 
 def state_at_street(street=0, holes=(0, 5, 10, 15), board=(20, 25, 30, 35, 40)):
-    state = load_hunl_game().new_initial_state()
+    state = load_hulhe_game().new_initial_state()
     for card in holes:
         state.apply_action(card)
     index = 0
@@ -51,10 +51,10 @@ def assert_models_equal(a, b, *, exact=True):
 
 
 def test_game_and_street_contract():
-    assert HUNL_GAME_PARAMETERS["betting"] == "nolimit"
-    assert HUNL_GAME_PARAMETERS["stack"] == "20000 20000"
-    assert load_hunl_game().num_distinct_actions() == 4
-    encoder = HUNLFeatureEncoder()
+    assert HULHE_GAME_PARAMETERS["betting"] == "nolimit"
+    assert HULHE_GAME_PARAMETERS["stack"] == "20000 20000"
+    assert load_hulhe_game().num_distinct_actions() == 4
+    encoder = HULHEFeatureEncoder()
     for street, count in enumerate((0, 3, 4, 5)):
         state = state_at_street(street)
         assert state.current_player() == (0 if street == 0 else 1)
@@ -74,7 +74,7 @@ def test_pot_raise_allin_and_terminal_payoffs():
     state = state_at_street()
     state.apply_action(2)
     assert "r300" in state.information_state_string(1)
-    assert HUNLFeatureEncoder().information_state(state).max() <= 1
+    assert HULHEFeatureEncoder().information_state(state).max() <= 1
     state.apply_action(0)
     assert state.is_terminal() and state.returns() == [100.0, -100.0]
     state = state_at_street()
@@ -88,14 +88,14 @@ def test_pot_raise_allin_and_terminal_payoffs():
 
 
 def test_hidden_cards_do_not_leak_into_policy_and_suits_are_canonical():
-    encoder = HUNLFeatureEncoder()
+    encoder = HULHEFeatureEncoder()
     a = state_at_street(2)
     b = state_at_street(2, holes=(1, 6, 10, 15))
     # Player 1 is acting. Changing only player 0's cards cannot change its view.
     np.testing.assert_array_equal(encoder.information_state(a), encoder.information_state(b))
     assert not np.array_equal(encoder.full_state(a), encoder.full_state(b))
     perm = (2, 0, 3, 1)
-    mapped = load_hunl_game().new_initial_state()
+    mapped = load_hulhe_game().new_initial_state()
     for event in a.full_history():
         action = 4 * (event.action // 4) + perm[event.action % 4] if event.player == -1 else event.action
         mapped.apply_action(action)
@@ -104,7 +104,7 @@ def test_hidden_cards_do_not_leak_into_policy_and_suits_are_canonical():
 
 
 def test_turn_and_river_order_is_retained():
-    encoder = HUNLFeatureEncoder()
+    encoder = HULHEFeatureEncoder()
     a = state_at_street(3)
     b = state_at_street(3, board=(20, 25, 30, 40, 35))
     np.testing.assert_array_equal(a.information_state_tensor(), b.information_state_tensor())
@@ -131,7 +131,7 @@ def test_checkpoint_reloads_legal_policy(tmp_path):
     solver.train_average_policy()
     path = save_policy_checkpoint(solver, tmp_path / "policy.pkl", seed=0,
                                   config=smoke_config(), checkpoint_row={})
-    loaded = LoadedHUNLPolicy(load_hunl_game(), path)
+    loaded = LoadedHULHEPolicy(load_hulhe_game(), path)
     for street in range(4):
         state = state_at_street(street)
         probs = loaded.action_probabilities(state)
@@ -191,7 +191,7 @@ def test_repo_has_no_historical_experiments_and_baseline_is_reduced():
 
 
 def test_cli_checkpoint_cadence_and_resume(tmp_path):
-    from hunl_escher.train import main
+    from hulhe_escher.train import main
     args = ["--smoke", "--checkpoint-every", "2", "--output", str(tmp_path)]
     main([*args, "--iterations", "2"])
     assert not (tmp_path / "policy_000001.pkl").exists()

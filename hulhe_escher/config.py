@@ -37,16 +37,16 @@ def validate_config(config):
                 "calibration_train_steps", "average_policy_train_steps"):
         if type(config[key]) is not int or config[key] <= 0:
             raise ValueError(f"{key} must be a positive integer")
-    if config["game_name"] != "HUNL" or config["feature_encoder_id"] != ENCODER_ID:
-        raise ValueError("Use the versioned HUNL game and encoder")
+    if config["game_name"] != "HULHE" or config["feature_encoder_id"] != ENCODER_ID:
+        raise ValueError("Use the versioned HULHE game and encoder")
     if config["q_ensemble_size"] != 2 or config["use_instantaneous_predictor"]:
         raise ValueError("Baseline requires two cross-fit critics and no predictor")
     if config["evaluation_frequency"] != 0 or config["evaluate_initial_policy"]:
-        raise ValueError("The HUNL runner owns evaluation and checkpoint boundaries")
+        raise ValueError("The HULHE runner owns evaluation and checkpoint boundaries")
 
 
 def make_solver(config=None, *, seed=0, workers=1):
-    from unbiased_escher.hunl_structured_solver import StructuredHUNLGroupedWideUCVEscher
+    from unbiased_escher.hulhe_structured_solver import StructuredHULHEGroupedWideUCVEscher
     from unbiased_escher.grouped_parallel_solver import ParallelStructuredGroupedUCVEscher
     from vr_deep_cfr.logger import Logger
 
@@ -61,7 +61,7 @@ def make_solver(config=None, *, seed=0, workers=1):
         "early_evaluation_node_thresholds")}
     kwargs.update(seed=seed, logger=Logger(), num_episodes=2 * config["num_traversals"])
     if workers == 1:
-        solver = StructuredHUNLGroupedWideUCVEscher(**kwargs)
+        solver = StructuredHULHEGroupedWideUCVEscher(**kwargs)
     else:
         solver = ParallelStructuredGroupedUCVEscher(
             **kwargs, parallel_num_workers=workers, parallel_run_seed=seed,

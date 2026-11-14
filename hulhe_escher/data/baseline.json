@@ -1,5 +1,5 @@
 {
-  "game_name": "HUNL",
+  "game_name": "HULHE",
   "advantage_buffer_size": 1000000,
   "ave_policy_buffer_size": 1000000,
   "baseline_buffer_size": 1000000,
@@ -69,5 +69,5 @@
   "paired_legacy_train_steps": 5000,
   "structured_branch_width": 64,
   "cache_frozen_critic_targets": true,
-  "feature_encoder_id": "hunl_suit_canonical_fcpa_v1"
+  "feature_encoder_id": "hulhe_suit_canonical_fcpa_v1"
 }

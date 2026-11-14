@@ -1,4 +1,4 @@
-"""Lossless suit-canonical HUNL variant of grouped-wide UCV-ESCHER."""
+"""Lossless suit-canonical HULHE variant of grouped-wide UCV-ESCHER."""
 
 from __future__ import annotations
 
@@ -8,12 +8,12 @@ import random
 import numpy as np
 import torch
 
-from hunl_escher.features import (
-    HUNLFeatureEncoder,
+from hulhe_escher.features import (
+    HULHEFeatureEncoder,
     ENCODER_ID,
     make_feature_encoder,
     FeatureLayout,
-    StructuredHUNLMLP,
+    StructuredHULHEMLP,
 )
 from vr_deep_cfr.solver import AvePolicyTrainer
 from vr_deep_cfr.variants import VRDCFRPlusRegretTrainer
@@ -32,7 +32,7 @@ class _StructuredModelMixin:
     structured_branch_width: int
 
     def init_model(self):
-        return StructuredHUNLMLP(
+        return StructuredHULHEMLP(
             self.feature_layout,
             self.network_layers,
             self.output_size,
@@ -40,11 +40,11 @@ class _StructuredModelMixin:
         ).to(self.device)
 
 
-class StructuredHUNLRegretTrainer(_StructuredModelMixin, VRDCFRPlusRegretTrainer):
+class StructuredHULHERegretTrainer(_StructuredModelMixin, VRDCFRPlusRegretTrainer):
     def __init__(
         self,
         *args,
-        feature_encoder: HUNLFeatureEncoder,
+        feature_encoder: HULHEFeatureEncoder,
         branch_width: int,
         replay_seed: int,
         **kwargs,
@@ -69,13 +69,13 @@ class StructuredHUNLRegretTrainer(_StructuredModelMixin, VRDCFRPlusRegretTrainer
         )
 
 
-class StructuredHUNLAveragePolicyTrainer(
+class StructuredHULHEAveragePolicyTrainer(
     _StructuredModelMixin, GroupedSoftTargetCrossEntropyAvePolicyTrainer
 ):
     def __init__(
         self,
         *args,
-        feature_encoder: HUNLFeatureEncoder,
+        feature_encoder: HULHEFeatureEncoder,
         branch_width: int,
         replay_seed: int,
         **kwargs,
@@ -99,13 +99,13 @@ class StructuredHUNLAveragePolicyTrainer(
         )
 
 
-class StructuredHUNLQMember(
+class StructuredHULHEQMember(
     _StructuredModelMixin, TemporallyAveragedCrossFittedQMember
 ):
     def __init__(
         self,
         *args,
-        feature_encoder: HUNLFeatureEncoder,
+        feature_encoder: HULHEFeatureEncoder,
         branch_width: int,
         replay_seed: int,
         **kwargs,
@@ -130,11 +130,11 @@ class StructuredHUNLQMember(
         )
 
 
-class StructuredHUNLQEnsemble(TemporallyAveragedCrossFittedQEnsemble):
+class StructuredHULHEQEnsemble(TemporallyAveragedCrossFittedQEnsemble):
     def __init__(
         self,
         *,
-        feature_encoder: HUNLFeatureEncoder,
+        feature_encoder: HULHEFeatureEncoder,
         branch_width: int,
         replay_seed: int,
         target_average_window: int,
@@ -158,7 +158,7 @@ class StructuredHUNLQEnsemble(TemporallyAveragedCrossFittedQEnsemble):
             raise ValueError("Ensemble size and target-average window must be positive")
         member_buffer_size = max(1, int(total_buffer_size) // self.ensemble_size)
         self.members = [
-            StructuredHUNLQMember(
+            StructuredHULHEQMember(
                 history_size,
                 state_size,
                 action_size,
@@ -182,7 +182,7 @@ class StructuredHUNLQEnsemble(TemporallyAveragedCrossFittedQEnsemble):
         self._active_add_count = 0
 
 
-class StructuredHUNLResidualCalibrationTrainer(ResidualCalibrationTrainer):
+class StructuredHULHEResidualCalibrationTrainer(ResidualCalibrationTrainer):
     def __init__(
         self,
         *,
@@ -195,7 +195,7 @@ class StructuredHUNLResidualCalibrationTrainer(ResidualCalibrationTrainer):
         train_steps: int,
         device: str,
         minimum_variance: float,
-        feature_encoder: HUNLFeatureEncoder,
+        feature_encoder: HULHEFeatureEncoder,
         branch_width: int,
     ):
         self.feature_encoder = feature_encoder
@@ -217,7 +217,7 @@ class StructuredHUNLResidualCalibrationTrainer(ResidualCalibrationTrainer):
             feature_encoder.policy_layout.card_size,
         )
         hidden_layers = list(hidden_layers)
-        self.model = StructuredHUNLMLP(
+        self.model = StructuredHULHEMLP(
             self.feature_layout,
             hidden_layers,
             2,
@@ -230,8 +230,8 @@ class StructuredHUNLResidualCalibrationTrainer(ResidualCalibrationTrainer):
         )
 
 
-class StructuredHUNLGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEscher):
-    """Selected UCV learner with four-street HUNL neural features."""
+class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEscher):
+    """Selected UCV learner with four-street HULHE neural features."""
 
     def __init__(
         self,
@@ -251,7 +251,7 @@ class StructuredHUNLGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEscher
 
     def init_ave_policy_trainer(self):
         # DeepCumuAdv initially discovers OpenSpiel's raw size. From this hook
-        # onwards every learner consistently uses the versioned HUNL encoder.
+        # onwards every learner consistently uses the versioned HULHE encoder.
         self.raw_open_spiel_infostate_size = int(self.infostate_size)
         self.infostate_size = self.feature_encoder.policy_size
 
@@ -276,7 +276,7 @@ class StructuredHUNLGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEscher
         }
         if torch.cuda.is_available():
             rng_after_legacy["cuda"] = torch.cuda.get_rng_state_all()
-        self.ave_policy_trainer = StructuredHUNLAveragePolicyTrainer(
+        self.ave_policy_trainer = StructuredHULHEAveragePolicyTrainer(
             self.infostate_size,
             self.action_size,
             list(self.average_policy_network_layers),
@@ -300,9 +300,9 @@ class StructuredHUNLGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEscher
 
     def init_regret_trainers(self):
         if self.use_instantaneous_predictor:
-            raise ValueError("Structured HUNL requires non-predictive UCV")
+            raise ValueError("Structured HULHE requires non-predictive UCV")
         self.regret_trainers = [
-            StructuredHUNLRegretTrainer(
+            StructuredHULHERegretTrainer(
                 self.infostate_size,
                 self.action_size,
                 self.network_layers,
@@ -322,7 +322,7 @@ class StructuredHUNLGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEscher
         ]
 
     def init_q_value_trainer(self):
-        self.q_value_trainer = StructuredHUNLQEnsemble(
+        self.q_value_trainer = StructuredHULHEQEnsemble(
             feature_encoder=self.feature_encoder,
             branch_width=self.structured_branch_width,
             replay_seed=self.feature_replay_seed + 300,
@@ -343,7 +343,7 @@ class StructuredHUNLGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEscher
         )
 
     def init_calibration_trainer(self):
-        self.calibration_trainer = StructuredHUNLResidualCalibrationTrainer(
+        self.calibration_trainer = StructuredHULHEResidualCalibrationTrainer(
             infostate_size=self.infostate_size,
             action_size=self.action_size,
             hidden_layers=self.network_layers,
@@ -376,8 +376,8 @@ class StructuredHUNLGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEscher
 
 
 __all__ = [
-    "StructuredHUNLGroupedWideUCVEscher",
-    "StructuredHUNLAveragePolicyTrainer",
-    "StructuredHUNLQEnsemble",
-    "StructuredHUNLRegretTrainer",
+    "StructuredHULHEGroupedWideUCVEscher",
+    "StructuredHULHEAveragePolicyTrainer",
+    "StructuredHULHEQEnsemble",
+    "StructuredHULHERegretTrainer",
 ]

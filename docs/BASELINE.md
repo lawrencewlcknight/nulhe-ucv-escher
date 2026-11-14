@@ -1,4 +1,9 @@
-# Selected UCV-ESCHER baseline
+# Inherited UCV-ESCHER baseline
+
+This document describes the source HUNL implementation and its evidence. The
+HULHE preparation copy retains those game rules and learner settings unchanged;
+fixed-limit conversion is the first item in [HULHE_PLAN.md](HULHE_PLAN.md).
+Package references below use the new namespace.
 
 ## Decision
 
@@ -15,7 +20,7 @@ working-tree edits in an evaluation launcher; none were needed or copied.
 The inherited implementation traces through Experiment 9's frozen-target cache,
 Experiment 7's parallel collector, and Experiment 2's structured networks and
 compact float32 replay. Reusable checkpoint code was lifted out of experiment
-packages into `hunl_escher`; runtime imports do not depend on historical experiments.
+packages into `hulhe_escher`; runtime imports do not depend on historical experiments.
 
 ## Why 2,500 rather than 500
 

@@ -1,4 +1,4 @@
-"""Synchronous Ray-parallel traversal collection for HUNL UCV-ESCHER.
+"""Synchronous Ray-parallel traversal collection for HULHE UCV-ESCHER.
 
 Ported from the Leduc ESCHER architecture repository at commit
 c09bbe5a9adc6b495c9a0f74c2993dcb682ea754. The
@@ -21,7 +21,7 @@ from typing import Any, Iterable, Mapping
 import numpy as np
 import torch
 
-from hunl_escher.game import HUNL_GAME_NAME, load_hunl_game
+from hulhe_escher.game import HULHE_GAME_NAME, load_hulhe_game
 from vr_deep_cfr.logger import Logger
 
 from .parallel_utils import partition_total, worker_seed
@@ -158,9 +158,9 @@ class UCVEscherTraversalWorker:
         except RuntimeError:
             pass
 
-        if str(game_name) != HUNL_GAME_NAME:
-            raise ValueError(f"Parallel HUNL workers do not support {game_name!r}")
-        game = load_hunl_game()
+        if str(game_name) != HULHE_GAME_NAME:
+            raise ValueError(f"Parallel HULHE workers do not support {game_name!r}")
+        game = load_hulhe_game()
         max_traversals = max(1, int(max_traversals_per_request))
         max_records = max_traversals * (int(game.max_game_length()) + 1)
         ensemble_size = int(solver_kwargs.get("q_ensemble_size", 3))
@@ -461,8 +461,8 @@ class ParallelUnbiasedControlVariateEscher(UnbiasedControlVariateEscher):
                 "reconstruct the frozen traversal configuration"
             )
         game_name = str(worker_solver_kwargs.get("game_name", ""))
-        if game_name != HUNL_GAME_NAME:
-            raise ValueError("Parallel UCV-ESCHER requires the canonical HUNL game")
+        if game_name != HULHE_GAME_NAME:
+            raise ValueError("Parallel UCV-ESCHER requires the canonical HULHE game")
         super().__init__(**solver_kwargs)
         self._workers: list[Any] = []
         self._ray = None

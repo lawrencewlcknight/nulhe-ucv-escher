@@ -1,4 +1,4 @@
-"""Exact, memory-conscious continuation states for HUNL."""
+"""Exact, memory-conscious continuation states for HULHE."""
 
 from __future__ import annotations
 
@@ -17,12 +17,12 @@ from .replay_state import feature_state, restore_features
 
 
 SCHEMA_VERSION = 1
-STATE_TYPE = "hunl_grouped_wide_full_training_state"
+STATE_TYPE = "hulhe_grouped_wide_full_training_state"
 SHARDED_SCHEMA_VERSION = 1
-SHARDED_STATE_TYPE = "hunl_sharded_training_state"
+SHARDED_STATE_TYPE = "hulhe_sharded_training_state"
 SHARDED_MANIFEST = "manifest.json"
 SHARDED_METADATA = "metadata.pt"
-_ARRAY_MARKER = "__hunl_numpy_shard__"
+_ARRAY_MARKER = "__hulhe_numpy_shard__"
 
 
 def _cpu_state_dict(model) -> dict[str, torch.Tensor]:
@@ -37,7 +37,7 @@ def _reservoir_state(buffer) -> dict[str, Any]:
     return {
         "cur_id": int(buffer.cur_id),
         "size": size,
-        # Views avoid doubling HUNL's large replay allocation before torch.save.
+        # Views avoid doubling HULHE's large replay allocation before torch.save.
         "infostate": feature_state(buffer.infostate_buf, size),
         "q_value": np.asarray(buffer.q_value_buf[:size]),
         "q_value_mask": np.asarray(buffer.q_value_mask_buf[:size]),
@@ -225,7 +225,7 @@ def build_training_state(
 
 
 def save_training_state(path: Path, payload: Mapping[str, Any]) -> None:
-    """Write the legacy monolithic format used by HUNL."""
+    """Write the legacy monolithic format used by HULHE."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -234,7 +234,7 @@ def save_training_state(path: Path, payload: Mapping[str, Any]) -> None:
 
 
 def read_training_state(path: Path) -> dict[str, Any]:
-    """Read the legacy monolithic format used by HUNL."""
+    """Read the legacy monolithic format used by HULHE."""
     return torch.load(Path(path), map_location="cpu", weights_only=False)
 
 

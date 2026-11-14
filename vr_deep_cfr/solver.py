@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from scipy import stats
 
-from hunl_escher.game import load_hunl_game
+from hulhe_escher.game import load_hulhe_game
 from .logger import Logger
 
 SpielState = Union[pyspiel.State, Any]
@@ -442,7 +442,7 @@ class DeepCumuAdv:
         self.logger.record("checkpoint_kind", checkpoint_kind)
         self.logger.record("checkpoint_target_nodes", checkpoint_target_nodes)
         self.logger.record("checkpoint_target_seconds", checkpoint_target_seconds)
-        # Exact tabular exploitability requires enumerating HUNL's enormous game
+        # Exact tabular exploitability requires enumerating HULHE's enormous game
         # tree. Checkpoints therefore report training diagnostics and are kept
         # reloadable for sampled head-to-head evaluation instead.
         self.logger.record("exp", np.nan)
@@ -556,13 +556,13 @@ class DeepCumuAdv:
             s.information_state_tensor(0), s.information_state_tensor(1)
         )
     def load_game(self):
-        if self.game_name != "HUNL":
+        if self.game_name != "HULHE":
             raise ValueError(
-                f"This repository supports the HUNL game definition only, got "
+                f"This repository supports the HULHE game definition only, got "
                 f"{self.game_name!r}."
             )
         self.poker_game = True
-        return load_hunl_game()
+        return load_hulhe_game()
 
     def skip_chance_state(self, s):
         while s.current_player() == -1:

@@ -8,12 +8,12 @@ from .estimator import (
 )
 from .solver import UnbiasedControlVariateEscher
 from .grouped_wide_solver import GroupedWideUnbiasedControlVariateEscher
-from .hunl_structured_solver import StructuredHUNLGroupedWideUCVEscher
+from .hulhe_structured_solver import StructuredHULHEGroupedWideUCVEscher
 
 __all__ = [
     "ControlVariateEstimate",
     "GroupedWideUnbiasedControlVariateEscher",
-    "StructuredHUNLGroupedWideUCVEscher",
+    "StructuredHULHEGroupedWideUCVEscher",
     "UnbiasedControlVariateEscher",
     "control_variate_advantage",
     "residual_adaptive_sampling_policy",

@@ -1,4 +1,4 @@
-"""Reloadable average-policy checkpoints for HUNL UCV-ESCHER."""
+"""Reloadable average-policy checkpoints for HULHE UCV-ESCHER."""
 
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ from typing import Mapping, Optional
 import numpy as np
 from open_spiel.python import policy
 
-from .game import HUNL_GAME_PARAMETERS, serialisable_game_definition
+from .game import HULHE_GAME_PARAMETERS, serialisable_game_definition
 
 
-CHECKPOINT_TYPE = "hunl_ucv_escher_policy_checkpoint"
+CHECKPOINT_TYPE = "hulhe_ucv_escher_policy_checkpoint"
 CHECKPOINT_VERSION = 1
 
 
@@ -96,20 +96,20 @@ def load_checkpoint_payload(path: str | Path) -> dict:
     if int(payload.get("version", -1)) != CHECKPOINT_VERSION:
         raise ValueError(f"Unsupported checkpoint version: {payload.get('version')!r}")
     parameters = payload.get("game", {}).get("parameters")
-    if parameters != dict(HUNL_GAME_PARAMETERS):
-        raise ValueError("Checkpoint does not use the canonical HUNL game definition")
+    if parameters != dict(HULHE_GAME_PARAMETERS):
+        raise ValueError("Checkpoint does not use the canonical HULHE game definition")
     return payload
 
 
-class LoadedHUNLPolicy(policy.Policy):
+class LoadedHULHEPolicy(policy.Policy):
     """OpenSpiel-compatible policy restored from a saved checkpoint."""
 
     def __init__(self, game, checkpoint_path: str | Path):
         import torch
 
-        from hunl_escher.features import (
+        from hulhe_escher.features import (
             FeatureLayout,
-            StructuredHUNLMLP,
+            StructuredHULHEMLP,
             encoder_from_metadata,
         )
         from vr_deep_cfr.solver import MLP
@@ -128,7 +128,7 @@ class LoadedHUNLPolicy(policy.Policy):
                 [int(value) for value in self.checkpoint["policy_network_layers"]],
                 int(self.checkpoint["num_actions"]),
             )
-        elif model_metadata.get("type") == "structured_hunl_mlp_v1":
+        elif model_metadata.get("type") == "structured_hulhe_mlp_v1":
             layout_metadata = model_metadata["layout"]
             layout = FeatureLayout(
                 name=str(layout_metadata["name"]),
@@ -136,10 +136,10 @@ class LoadedHUNLPolicy(policy.Policy):
                 card_size=int(layout_metadata["card_size"]),
             )
             if self.feature_encoder is None:
-                raise ValueError("Structured HUNL checkpoint has no feature encoder")
+                raise ValueError("Structured HULHE checkpoint has no feature encoder")
             if layout != self.feature_encoder.policy_layout:
                 raise ValueError("Checkpoint policy layout differs from its encoder")
-            self.model = StructuredHUNLMLP(
+            self.model = StructuredHULHEMLP(
                 layout,
                 [int(value) for value in model_metadata["hidden_layers"]],
                 int(model_metadata["output_size"]),

@@ -1,16 +1,23 @@
-# HUNL UCV-ESCHER
+# Limit Hold'em — HULHE UCV-ESCHER
 
-A clean research repository for training Unbiased Control-Variate ESCHER in
-heads-up no-limit Texas Hold'em. The learner is extracted from the efficient
-FHP Experiment 36/38 implementation, with **2,500 updates per critic per fit**.
+A preparation repository for developing Unbiased Control-Variate ESCHER in
+**heads-up fixed-limit Texas Hold'em (HULHE)**, copied from `hunl-ucv-escher`
+at commit `cf456b3b1a8b41bd5f35fd6dd75059d9e13a8b44`.
+The learner comes from the efficient FHP Experiment 36/38 implementation,
+with **2,500 updates per critic per fit**.
 See [the baseline specification](docs/BASELINE.md) for the choice and evidence.
 
-The initial game has two players, a full 52-card deck, preflop/flop/turn/river,
-50/100 blinds, and 20,000-chip stacks reset every hand. The initial **FCPA action
-abstraction** allows fold, check/call, pot-sized raise and all-in when legal.
-This is a runnable development baseline, not a trained competitive model.
-It does not yet support arbitrary opponent bet sizes or Slumbot/GTO Wizard API
-play. Those require the action/state adapter work in [the development plan](docs/HUNL_PLAN.md).
+**Status: repository preparation only. Fixed-limit rules are not implemented yet.**
+This copy changes project identity, imports, CLI and checkpoint namespaces;
+the learning algorithm, budgets, encoder behavior and game rules remain inherited.
+The executable game still has two players, 52 cards, preflop/flop/turn/river,
+50/100 blinds and 20,000-chip stacks reset every hand. The FCPA abstraction
+allows fold, check/call, pot-sized raise and all-in when legal.
+
+The first development step is to replace these rules and the corresponding
+encoder/action contract with fixed-limit Hold'em. See [the development plan](docs/HULHE_PLAN.md).
+Current smoke runs exercise the inherited no-limit game; they are not limit
+training or limit benchmark results. Run manifests explicitly record this status.
 
 ## Install
 
@@ -26,13 +33,16 @@ Core dependencies are pinned in `pyproject.toml`. The parallel extra adds Ray;
 sequential training does not need it. The source repository and copied-file
 hashes are recorded in [provenance.json](docs/provenance.json). Upstream attribution
 and the original licence-status note remain in [UPSTREAM.md](vr_deep_cfr/UPSTREAM.md).
+The installed command is `hulhe-train`; `python -m hulhe_escher.train` is equivalent.
+Use a separate virtual environment from the HUNL project because the inherited
+shared package names (`unbiased_escher`, `adaptive_escher`, `vr_deep_cfr`) overlap.
 
 ## Verify and run
 
 ```bash
 python -m pytest -q
-python -m hunl_escher.train --smoke --iterations 2 --output outputs/smoke
-python -m hunl_escher.train --smoke --iterations 3 --output outputs/smoke --resume
+python -m hulhe_escher.train --smoke --iterations 2 --output outputs/smoke
+python -m hulhe_escher.train --smoke --iterations 3 --output outputs/smoke --resume
 RUN_RAY_TESTS=1 python -m pytest -q -m ray
 ```
 
@@ -41,11 +51,11 @@ playing strength. Tests exercise real OpenSpiel and PyTorch. Ray tests start
 real local worker processes and are opt-in.
 
 The inherited learning budget is in
-[`hunl_escher/data/baseline.json`](hunl_escher/data/baseline.json).
+[`hulhe_escher/data/baseline.json`](hulhe_escher/data/baseline.json).
 An explicit training invocation using the original eight-worker arrangement is:
 
 ```bash
-python -m hunl_escher.train --iterations 100 --workers 8 --threads 8 \
+python -m hulhe_escher.train --iterations 100 --workers 8 --threads 8 \
   --checkpoint-every 50 --seed 0 --output outputs/baseline-seed0
 ```
 
@@ -67,12 +77,17 @@ cadence. A retention policy and cloud runner remain future work.
 
 | Directory | Purpose |
 |---|---|
-| `hunl_escher/` | Game, four-street encoder, configuration, CLI and checkpoints |
+| `hulhe_escher/` | Game, four-street encoder, configuration, CLI and checkpoints |
 | `unbiased_escher/` | UCV estimator, structured learners, compact replay, parallel collection |
 | `adaptive_escher/` | Persistent frozen-target critic and target cache |
 | `vr_deep_cfr/` | Inherited neural cumulative-regret and replay foundations |
-| `tests/` | HUNL rules, information boundaries, cache equivalence, resume and actors |
+| `tests/` | Inherited no-limit rules, information boundaries, cache equivalence, resume and actors |
 | `docs/` | Baseline evidence, provenance and next implementation steps |
 
-No old FHP experiment runners, results, checkpoints, cloud launchers, evaluation
-suite or Git history were copied. The original FHP repository is untouched.
+The HUNL source history is retained in this independent local repository. No
+remote is configured. Ignored outputs, checkpoints, environments and build caches
+were not copied. The source HUNL repository is untouched.
+
+HULHE policy, model, encoder and continuation identifiers have their own namespace;
+existing HUNL checkpoints are not interchangeable. Fixed-limit conversion must
+version these contracts again where their shapes or semantics change.

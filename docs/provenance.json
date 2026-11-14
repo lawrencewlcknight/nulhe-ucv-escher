@@ -1,97 +1,171 @@
 {
-  "source_repository": "https://github.com/lawrencewlcknight/fhp-ucv-escher-experiments",
-  "source_commit": "c2d7a5cf5c1bfeb98393fb185457b68c7854ce13",
-  "selected_configuration": "Experiment 36; continued unchanged in Experiment 38",
-  "leduc_evidence_commit": "d6a5c2f9f3f06a05ad06a015c317800abad6d22a",
-  "leduc_evidence_run": "exp51-budget-20261101-220804",
-  "copied_files": {
-    "vr_deep_cfr/solver.py": {
-      "source": "vr_deep_cfr/solver.py",
-      "sha256": "5880b9d771af4ad8b562aceab627af7bd81fe2c76fee86bbdf59873b05aa4ca1"
+  "source_repository": "/Users/lawrenceknight/Documents/deep_cfr_v3/hunl-ucv-escher",
+  "source_commit": "cf456b3b1a8b41bd5f35fd6dd75059d9e13a8b44",
+  "source_remote": null,
+  "destination_project": "hulhe-ucv-escher",
+  "purpose": "Preparation baseline for heads-up fixed-limit Hold'em; game and learning behavior remain inherited no-limit until the next implementation step.",
+  "copy_policy": "Independent local clone retaining source Git history; remote removed. No ignored outputs, weights, build products, caches or environments copied.",
+  "inherited_provenance": "upstream/hunl_provenance.json",
+  "source_files": {
+    ".gitignore": {
+      "source": ".gitignore",
+      "source_sha256": "1741a32ab35098633659ae43defd6912326d1da01fea1fd9b537d3222bdd1019"
     },
-    "vr_deep_cfr/variants.py": {
-      "source": "vr_deep_cfr/variants.py",
-      "sha256": "bb53fde23d4f03c892197c79107f24445dc891696d759f80eb1161a05762b24a"
+    ".python-version": {
+      "source": ".python-version",
+      "source_sha256": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d"
     },
-    "vr_deep_cfr/logger.py": {
-      "source": "vr_deep_cfr/logger.py",
-      "sha256": "a6b72ede6e12535dfa64c0eb646aeb376469b9f603400340ffa0aee45c486a9d"
+    "README.md": {
+      "source": "README.md",
+      "source_sha256": "d2f1cd48c7ebad27c93d61ec6a9ba083063cadcf66cca1e1432db6a88004c52e"
     },
-    "vr_deep_cfr/__init__.py": {
-      "source": "vr_deep_cfr/__init__.py",
-      "sha256": "e5327ac83217aefeca567fa8b4eef885c44c230433667b9f0f1ea6dbcc3bc797"
-    },
-    "vr_deep_cfr/UPSTREAM.md": {
-      "source": "vr_deep_cfr/UPSTREAM.md",
-      "sha256": "7719264cf20a0ff4bf8ab2931f602937aa813e1c5796d852b91c959ceb7b4577"
-    },
-    "adaptive_escher/solver.py": {
-      "source": "adaptive_escher/solver.py",
-      "sha256": "2981adc30178a6bc1d7a5b322cc65fad41fc80567d4ad9ad2b1eea7522f9ea4e"
-    },
-    "adaptive_escher/estimator.py": {
-      "source": "adaptive_escher/estimator.py",
-      "sha256": "73729d2019dca0d967845993bcc336b98601ea722a0afe389238a916161dd7c4"
-    },
-    "adaptive_escher/frozen_target_cache.py": {
-      "source": "adaptive_escher/frozen_target_cache.py",
-      "sha256": "513f3b929727508847e3210308a30115d71cee3e542e2c9bbec44e3a361667f1"
+    "TESTING.md": {
+      "source": "TESTING.md",
+      "source_sha256": "1ac09c1ff89e39579ec8cc8e574325be078b91a98fcae90a1231332b04c8de76"
     },
     "adaptive_escher/__init__.py": {
       "source": "adaptive_escher/__init__.py",
-      "sha256": "271073355cbe8040e3d136bddf2ef7353cc27f56fcf8327cdc34a8371975b924"
+      "source_sha256": "271073355cbe8040e3d136bddf2ef7353cc27f56fcf8327cdc34a8371975b924"
     },
-    "unbiased_escher/solver.py": {
-      "source": "unbiased_escher/solver.py",
-      "sha256": "fd631ce719bcf41a00ddb5d3542db336e459b628c9af6ebf433f8f4cec7996f9"
+    "adaptive_escher/estimator.py": {
+      "source": "adaptive_escher/estimator.py",
+      "source_sha256": "73729d2019dca0d967845993bcc336b98601ea722a0afe389238a916161dd7c4"
     },
-    "unbiased_escher/estimator.py": {
-      "source": "unbiased_escher/estimator.py",
-      "sha256": "49f6fe16ded28a6b23a3ecaea836fbcb00392b11eb03129bf95f79c4a280a45f"
+    "adaptive_escher/frozen_target_cache.py": {
+      "source": "adaptive_escher/frozen_target_cache.py",
+      "source_sha256": "513f3b929727508847e3210308a30115d71cee3e542e2c9bbec44e3a361667f1"
     },
-    "unbiased_escher/grouped_wide_solver.py": {
-      "source": "unbiased_escher/grouped_wide_solver.py",
-      "sha256": "c180ff3a48691e33616620309f881fda9bccc189e3fbf227583a8b02c747e3e8"
+    "adaptive_escher/solver.py": {
+      "source": "adaptive_escher/solver.py",
+      "source_sha256": "2981adc30178a6bc1d7a5b322cc65fad41fc80567d4ad9ad2b1eea7522f9ea4e"
     },
-    "unbiased_escher/efficient_replay.py": {
-      "source": "unbiased_escher/efficient_replay.py",
-      "sha256": "47c55243e2391df6c2e8e5c39487ad133c99f73a9a9a9351df67ea9c365b0dce"
+    "docs/BASELINE.md": {
+      "source": "docs/BASELINE.md",
+      "source_sha256": "1da0b8138e9c91769c03607a83458c764d344f264c8641f43277f122731d1c04"
     },
-    "unbiased_escher/parallel_solver.py": {
-      "source": "unbiased_escher/parallel_solver.py",
-      "sha256": "ae4ece2454375d16d12927b181181ad1b2ba2c2bcc45ea4a55d6f4c83b0379e8"
+    "docs/HULHE_PLAN.md": {
+      "source": "docs/HUNL_PLAN.md",
+      "source_sha256": "2ee66100ea9eb8cc2f6b83887e3910fceee0517ab0663121c4f20c1037b964a1"
     },
-    "unbiased_escher/parallel_utils.py": {
-      "source": "unbiased_escher/parallel_utils.py",
-      "sha256": "42eb4770fa530c70024d0e50e7fbc652b9b5e7f0ebbb1a6b957d8a68d495e2ae"
+    "docs/critic_budget_evidence.json": {
+      "source": "docs/critic_budget_evidence.json",
+      "source_sha256": "e2ddc608b696611ade9eedf8d974ed9d89ce3fcdc0bfe2f5a1c1877764b9ee88"
+    },
+    "docs/provenance.json": {
+      "source": "docs/provenance.json",
+      "source_sha256": "75a623deefc5ecb4d42ae71c0b88e7a2e8d6d66a51b71b6f8a2df6cb52c9da1b"
+    },
+    "hulhe_escher/__init__.py": {
+      "source": "hunl_escher/__init__.py",
+      "source_sha256": "334d647105bbbf08842a8472f8c52a814679331f17a4d80297291e34becc2a4e"
+    },
+    "hulhe_escher/checkpointing.py": {
+      "source": "hunl_escher/checkpointing.py",
+      "source_sha256": "1b6988349ecd8f1cb3c41d01d5a636586be5e1e7627091b1ec7f166aea869cf9"
+    },
+    "hulhe_escher/config.py": {
+      "source": "hunl_escher/config.py",
+      "source_sha256": "96e44ab801ac51105e2983e7348879488290e38f943bc336e423f89f77ff9ce2"
+    },
+    "hulhe_escher/data/baseline.json": {
+      "source": "hunl_escher/data/baseline.json",
+      "source_sha256": "da63ac258b1d89387edc27d2a70135f687aac9445564c2af97fa05e65e942fcb"
+    },
+    "hulhe_escher/features.py": {
+      "source": "hunl_escher/features.py",
+      "source_sha256": "ba12323ff12aa2462eab0ad31b621698ebc25e0ac005bfde0bd96758bfe2a692"
+    },
+    "hulhe_escher/game.py": {
+      "source": "hunl_escher/game.py",
+      "source_sha256": "414190734f51b4f50dbc59041caff07a7f642b0738c08570d8c89411fd8324a7"
+    },
+    "hulhe_escher/replay_state.py": {
+      "source": "hunl_escher/replay_state.py",
+      "source_sha256": "43d64626124708893b5cdbb79fea52b941fd847205c80a061029bafc993932ba"
+    },
+    "hulhe_escher/state_storage.py": {
+      "source": "hunl_escher/state_storage.py",
+      "source_sha256": "3756a9fcc7814664c86e769914b4040928b977bbc2873b49d7038708078a39a1"
+    },
+    "hulhe_escher/train.py": {
+      "source": "hunl_escher/train.py",
+      "source_sha256": "1ed49a12bded51f7a622c98a7f843ea46faf13b3f9dacbe89f6a9e8d6f99de97"
+    },
+    "hulhe_escher/training_state.py": {
+      "source": "hunl_escher/training_state.py",
+      "source_sha256": "6beb206a5faf37b01622c2f0a241a3db013510bb334f475bb98a1a1627b4e887"
+    },
+    "pyproject.toml": {
+      "source": "pyproject.toml",
+      "source_sha256": "2e8d78d2072a545aca822468380ed3858ef855517785ca9a7b46ff8bb341b8ea"
+    },
+    "requirements-dev.txt": {
+      "source": "requirements-dev.txt",
+      "source_sha256": "b2cf40cfde63ffcd654d233d12aebeb06ea2092d1cbd22aa25c34efacfcfd804"
+    },
+    "requirements.txt": {
+      "source": "requirements.txt",
+      "source_sha256": "1eb12afc33ee9842ae4c26983e500ec9b9d1cf390ae40a41bc6d3b46009a5721"
+    },
+    "tests/test_hulhe.py": {
+      "source": "tests/test_hunl.py",
+      "source_sha256": "4d673cdb146ebad1ea104408049eadf5407217a7d743f973a335cd7b44c6046e"
     },
     "unbiased_escher/__init__.py": {
       "source": "unbiased_escher/__init__.py",
-      "sha256": "6b715a807ad4cc8feadc5263c625a06bdd5151603aba9f1a96dd44f86e470e7b"
+      "source_sha256": "9b4ffb90d0e202bbd9da8df4ee9491fc21b120818ea2cdd93a6ed1fbfed69aac"
     },
-    "unbiased_escher/hunl_structured_solver.py": {
-      "source": "unbiased_escher/fhp_structured_solver.py",
-      "sha256": "65ae5010f0e4a3ba56eb5ac5a53b05f0f0b0d6850c02ff4402f58a275edcc1f6"
+    "unbiased_escher/efficient_replay.py": {
+      "source": "unbiased_escher/efficient_replay.py",
+      "source_sha256": "47c55243e2391df6c2e8e5c39487ad133c99f73a9a9a9351df67ea9c365b0dce"
     },
-    "hunl_escher/state_storage.py": {
-      "source": "experiments/fhp/exp1_fhp_grouped_wide_ucv_baseline/training_state.py",
-      "sha256": "4ee6aef15980f65a937a35b0a9067c9ae21ab0ceca1c03cf4448e32ab59a9510"
+    "unbiased_escher/estimator.py": {
+      "source": "unbiased_escher/estimator.py",
+      "source_sha256": "49f6fe16ded28a6b23a3ecaea836fbcb00392b11eb03129bf95f79c4a280a45f"
     },
-    "hunl_escher/checkpointing.py": {
-      "source": "fhp_escher/checkpointing.py",
-      "sha256": "e7674c9489d50b3ab378ceaada46190bb73a0d6b4d862d1090e49286dfa56f46"
+    "unbiased_escher/grouped_parallel_solver.py": {
+      "source": "unbiased_escher/grouped_parallel_solver.py",
+      "source_sha256": "406fd27ab20b13968cffb1baa1248e60be7f57c560a793e7907cd3826964c8eb"
     },
-    "hunl_escher/features.py": {
-      "source": "fhp_escher/features.py",
-      "sha256": "64d3ddda6b5919f513619e3cc22e845197e794fe084a332e44af4cd8da62c421",
-      "scope": "FeatureLayout and structured network architecture adapted; HUNL encoding newly implemented"
+    "unbiased_escher/grouped_wide_solver.py": {
+      "source": "unbiased_escher/grouped_wide_solver.py",
+      "source_sha256": "db9402bf559fd434b61ee67af60ca3ed768f4a8ad87c132271fbbe64efbdb1ce"
+    },
+    "unbiased_escher/hulhe_structured_solver.py": {
+      "source": "unbiased_escher/hunl_structured_solver.py",
+      "source_sha256": "37e643ab77dd8c218881a33d4c7efc0f1a7cb704838aa0e81c327b799b7ad215"
+    },
+    "unbiased_escher/parallel_solver.py": {
+      "source": "unbiased_escher/parallel_solver.py",
+      "source_sha256": "dafec3e8dbfe4646ce85314b4b4b371bb1cd4b3285155b98ac22ddf9a964f359"
+    },
+    "unbiased_escher/parallel_utils.py": {
+      "source": "unbiased_escher/parallel_utils.py",
+      "source_sha256": "42eb4770fa530c70024d0e50e7fbc652b9b5e7f0ebbb1a6b957d8a68d495e2ae"
+    },
+    "unbiased_escher/solver.py": {
+      "source": "unbiased_escher/solver.py",
+      "source_sha256": "fd631ce719bcf41a00ddb5d3542db336e459b628c9af6ebf433f8f4cec7996f9"
+    },
+    "vr_deep_cfr/UPSTREAM.md": {
+      "source": "vr_deep_cfr/UPSTREAM.md",
+      "source_sha256": "7719264cf20a0ff4bf8ab2931f602937aa813e1c5796d852b91c959ceb7b4577"
+    },
+    "vr_deep_cfr/__init__.py": {
+      "source": "vr_deep_cfr/__init__.py",
+      "source_sha256": "acf7fe6b1911cc72645371136ffe9566aa81a5cc393fd9447c0be35044663ea5"
+    },
+    "vr_deep_cfr/logger.py": {
+      "source": "vr_deep_cfr/logger.py",
+      "source_sha256": "a6b72ede6e12535dfa64c0eb646aeb376469b9f603400340ffa0aee45c486a9d"
+    },
+    "vr_deep_cfr/solver.py": {
+      "source": "vr_deep_cfr/solver.py",
+      "source_sha256": "1328eeaabdba0d249711702d219ceeb71e389faf17a038aea4da35111bf9f87e"
+    },
+    "vr_deep_cfr/variants.py": {
+      "source": "vr_deep_cfr/variants.py",
+      "source_sha256": "bb53fde23d4f03c892197c79107f24445dc891696d759f80eb1161a05762b24a"
     }
-  },
-  "configuration_sources": {
-    "experiments/fhp/exp2_fhp_lossless_structured_ucv/config.py": "ac8de4a83a307444b8cdfd01cb59aa43c07d6db0e24f150a4b0ae814962cd2d2",
-    "experiments/fhp/exp7_fhp_parallel_structured_n2_standard16/config.py": "633d095a35c5f6fb157b2ed2837d1fb6eff8fd9e2b5bb81bed6f409fc56f6b30",
-    "experiments/fhp/exp9_fhp_cached_parallel_24h/config.py": "1cfacc4df4fd68b877948a69129e720964010267af2657a6fabf00d299e17ff2",
-    "experiments/fhp/exp36_fhp_strength_critic2500/config.py": "fa7d1822c7e25b790c9670cc5c28c5a239a19589c0a3898341d4570e2260485c"
-  },
-  "extraction_policy": "Selected reusable source only; no original Git history, experiments, outputs, weights, cloud jobs or dirty evaluation-launcher changes copied."
+  }
 }

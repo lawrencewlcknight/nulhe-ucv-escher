@@ -1,4 +1,6 @@
-"""Bounded local training and resumable smoke runs; never submits cloud jobs."""
+"""HULHE preparation baseline: inherited no-limit rules, pending limit conversion.
+
+Bounded local training and resumable smoke runs; never submits cloud jobs."""
 import argparse
 import hashlib
 import json
@@ -19,7 +21,7 @@ from .training_state import build_training_state, restore_training_state, save_t
 def source_fingerprint():
     root = Path(__file__).resolve().parents[1]
     digest = hashlib.sha256()
-    for package in ("hunl_escher", "unbiased_escher", "adaptive_escher", "vr_deep_cfr"):
+    for package in ("hulhe_escher", "unbiased_escher", "adaptive_escher", "vr_deep_cfr"):
         for path in sorted((root / package).rglob("*")):
             if path.suffix in (".py", ".json"):
                 digest.update(str(path.relative_to(root)).encode())

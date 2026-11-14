@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hunl-ucv-escher"
+name = "hulhe-ucv-escher"
 version = "0.1.0"
-description = "UCV-ESCHER research baseline for heads-up no-limit Hold'em"
+description = "UCV-ESCHER preparation baseline for heads-up limit Hold'em"
 requires-python = ">=3.10,<3.13"
 dependencies = [
   "numpy==1.26.4", "open_spiel==1.6.3", "scipy==1.13.1", "torch==2.7.0",
@@ -16,14 +16,14 @@ parallel = ["ray==2.51.2", "psutil==7.2.1"]
 dev = ["pytest>=8,<9"]
 
 [project.scripts]
-hunl-train = "hunl_escher.train:main"
+hulhe-train = "hulhe_escher.train:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["hunl_escher*", "unbiased_escher*", "adaptive_escher*", "vr_deep_cfr*"]
+include = ["hulhe_escher*", "unbiased_escher*", "adaptive_escher*", "vr_deep_cfr*"]
 
 [tool.setuptools.package-data]
-hunl_escher = ["data/*.json"]
+hulhe_escher = ["data/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

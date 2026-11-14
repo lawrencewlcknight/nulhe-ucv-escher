@@ -1,4 +1,4 @@
-"""Integrated VR-DeepCFR+ components used by HUNL UCV-ESCHER."""
+"""Integrated VR-DeepCFR+ components used by HULHE UCV-ESCHER."""
 
 from .variants import VRDeepDCFRPlus, VRDeepPDCFRPlus
 

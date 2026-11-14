@@ -1,14 +1,14 @@
 """Use the same structured UCV learner in driver and traversal actors."""
-from .hunl_structured_solver import StructuredHUNLGroupedWideUCVEscher
+from .hulhe_structured_solver import StructuredHULHEGroupedWideUCVEscher
 from .parallel_solver import ParallelUnbiasedControlVariateEscher, UCVEscherTraversalWorker
 
 
 class StructuredGroupedTraversalWorker(UCVEscherTraversalWorker):
-    SOLVER_CLASS = StructuredHUNLGroupedWideUCVEscher
+    SOLVER_CLASS = StructuredHULHEGroupedWideUCVEscher
 
 
 class ParallelStructuredGroupedUCVEscher(
-    ParallelUnbiasedControlVariateEscher, StructuredHUNLGroupedWideUCVEscher
+    ParallelUnbiasedControlVariateEscher, StructuredHULHEGroupedWideUCVEscher
 ):
     def _traversal_worker_class(self):
         return StructuredGroupedTraversalWorker

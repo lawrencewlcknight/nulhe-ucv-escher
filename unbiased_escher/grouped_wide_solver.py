@@ -1,4 +1,4 @@
-"""Leduc Experiment 35 grouped-wide UCV mechanisms adapted for HUNL."""
+"""Leduc Experiment 35 grouped-wide UCV mechanisms adapted for HULHE."""
 
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ class GroupedSoftTargetCrossEntropyAvePolicyTrainer(AvePolicyTrainer):
         self.grouped_num_information_sets = int(len(unique))
         self.grouped_reduction_ratio = float(len(unique)) / float(size)
         # Experiment 35 retained a lookup solely for exact Leduc empirical-
-        # policy diagnostics. HUNL cannot perform that tree enumeration; keeping
+        # policy diagnostics. HULHE cannot perform that tree enumeration; keeping
         # up to one million byte-string keys would add material memory without
         # affecting the grouped training objective.
         self.grouped_target_lookup = {}
@@ -221,7 +221,7 @@ class TemporallyAveragedCrossFittedQEnsemble(CrossFittedQEnsemble):
 
 
 class GroupedWideUnbiasedControlVariateEscher(UnbiasedControlVariateEscher):
-    """HUNL UCV-ESCHER using the selected Leduc Experiment 35 configuration."""
+    """HULHE UCV-ESCHER using the selected Leduc Experiment 35 configuration."""
 
     nonpredictive_regret_trainer_class = VRDCFRPlusRegretTrainer
     average_policy_trainer_class = GroupedSoftTargetCrossEntropyAvePolicyTrainer
@@ -318,7 +318,7 @@ class GroupedWideUnbiasedControlVariateEscher(UnbiasedControlVariateEscher):
         # that post-construction RNG state after creating the wider candidate.
         # Retain the seed stream without retaining or fitting the Leduc-only
         # paired diagnostic. Buffer construction is deterministic, so a
-        # one-row temporary buffer avoids a needless HUNL-scale allocation.
+        # one-row temporary buffer avoids a needless HULHE-scale allocation.
         legacy_rng_anchor = AvePolicyTrainer(
             self.infostate_size,
             self.action_size,

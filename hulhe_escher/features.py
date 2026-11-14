@@ -10,10 +10,10 @@ import numpy as np
 import torch
 from torch import nn
 
-from .game import load_hunl_game
+from .game import load_hulhe_game
 from vr_deep_cfr.solver import SonnetLinear, ZeroInitLinear
 
-ENCODER_ID = "hunl_suit_canonical_fcpa_v1"
+ENCODER_ID = "hulhe_suit_canonical_fcpa_v1"
 
 
 @dataclass(frozen=True)
@@ -37,11 +37,11 @@ def _canonicalise_suits(*channels):
     return tuple(channel[order].reshape(-1) for channel in channels)
 
 
-class HUNLFeatureEncoder:
+class HULHEFeatureEncoder:
     encoder_id = ENCODER_ID
 
     def __init__(self):
-        game = load_hunl_game()
+        game = load_hulhe_game()
         self.raw_size = game.information_state_tensor_size()
         self.history_slots = game.max_game_length()
         if self.raw_size != 106 + 3 * self.history_slots:
@@ -70,7 +70,7 @@ class HUNLFeatureEncoder:
     def _raw(self, state, player):
         raw = np.asarray(state.information_state_tensor(player), dtype=np.float32)
         if raw.shape != (self.raw_size,):
-            raise ValueError("State does not match the versioned HUNL tensor layout")
+            raise ValueError("State does not match the versioned HULHE tensor layout")
         return raw
 
     def _board(self, state):
@@ -124,23 +124,23 @@ class HUNLFeatureEncoder:
 
 def make_feature_encoder(encoder_id=ENCODER_ID):
     if encoder_id != ENCODER_ID:
-        raise ValueError(f"Unsupported HUNL encoder: {encoder_id}")
-    return HUNLFeatureEncoder()
+        raise ValueError(f"Unsupported HULHE encoder: {encoder_id}")
+    return HULHEFeatureEncoder()
 
 
 def encoder_from_metadata(metadata):
     if metadata is None:
-        raise ValueError("A HUNL policy must declare its encoder")
+        raise ValueError("A HULHE policy must declare its encoder")
     encoder = make_feature_encoder(metadata.get("id"))
     if metadata != encoder.metadata():
-        raise ValueError("Checkpoint encoder differs from the versioned HUNL contract")
+        raise ValueError("Checkpoint encoder differs from the versioned HULHE contract")
     return encoder
 
 
-class StructuredHUNLMLP(nn.Module):
+class StructuredHULHEMLP(nn.Module):
     """Small CPU-friendly two-branch MLP for cards and betting context."""
 
-    checkpoint_model_type = "structured_hunl_mlp_v1"
+    checkpoint_model_type = "structured_hulhe_mlp_v1"
 
     def __init__(
         self,
@@ -153,7 +153,7 @@ class StructuredHUNLMLP(nn.Module):
         super().__init__()
         hidden_layers = [int(width) for width in hidden_layers]
         if not hidden_layers or int(branch_width) <= 0:
-            raise ValueError("Structured HUNL MLP requires positive hidden widths")
+            raise ValueError("Structured HULHE MLP requires positive hidden widths")
         self.layout = layout
         self.input_size = int(layout.total_size)
         self.output_size = int(output_size)
