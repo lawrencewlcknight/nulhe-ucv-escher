@@ -1,23 +1,30 @@
 # Limit Hold'em — HULHE UCV-ESCHER
 
-A preparation repository for developing Unbiased Control-Variate ESCHER in
-**heads-up fixed-limit Texas Hold'em (HULHE)**, copied from `hunl-ucv-escher`
-at commit `cf456b3b1a8b41bd5f35fd6dd75059d9e13a8b44`.
-The learner comes from the efficient FHP Experiment 36/38 implementation,
-with **2,500 updates per critic per fit**.
-See [the baseline specification](docs/BASELINE.md) for the choice and evidence.
+A research repository for Unbiased Control-Variate ESCHER in **heads-up
+fixed-limit Texas Hold'em (HULHE)**, with **Fell Omen 2** as the selected challenge
+opponent. The learner comes from FHP Experiment 36/38 through the HUNL baseline,
+with **2,500 updates per critic per fit**. See [the baseline evidence](docs/BASELINE.md).
 
-**Status: repository preparation only. Fixed-limit rules are not implemented yet.**
-This copy changes project identity, imports, CLI and checkpoint namespaces;
-the learning algorithm, budgets, encoder behavior and game rules remain inherited.
-The executable game still has two players, 52 cards, preflop/flop/turn/river,
-50/100 blinds and 20,000-chip stacks reset every hand. The FCPA abstraction
-allows fold, check/call, pot-sized raise and all-in when legal.
+The game interface uses **OpenSpiel 1.6.3 `universal_poker`**:
 
-The first development step is to replace these rules and the corresponding
-encoder/action contract with fixed-limit Hold'em. See [the development plan](docs/HULHE_PLAN.md).
-Current smoke runs exercise the inherited no-limit game; they are not limit
-training or limit benchmark results. Run manifests explicitly record this status.
+* Two players, 52 cards, two hole cards each and all four betting streets.
+* Blinds 50/100; fixed bets 100/100/200/200 on preflop/flop/turn/river.
+* Four bets per street. The preflop big blind counts as the first bet, so the
+  OpenSpiel `maxRaises` setting is `3 4 4 4`.
+* Actions: `0=fold`, `1=check/call`, `2=bet/raise`, subject to the legal mask.
+* Independent, rake-free hands with nonbinding bankrolls. Returns are chips;
+  divide by 100 for small bets (big blinds), or 200 for big bets.
+
+The versioned encoder supplies **285 policy inputs** and **337 critic inputs**.
+It preserves betting history, suit symmetry, separate flop/turn/river channels,
+legal actions and hidden-card boundaries. The learning procedure and numerical
+budgets are unchanged; network and replay dimensions follow the new interface.
+See [the game-interface specification](docs/GAME_INTERFACE.md) for evidence,
+seat conventions and the complete feature layout.
+
+**Status:** fixed-limit self-play and checkpoint/resume are implemented.
+The Fell Omen 2 opponent adapter and head-to-head evaluation are still pending;
+no playing-strength result is claimed. See [the development plan](docs/HULHE_PLAN.md).
 
 ## Install
 
@@ -81,13 +88,14 @@ cadence. A retention policy and cloud runner remain future work.
 | `unbiased_escher/` | UCV estimator, structured learners, compact replay, parallel collection |
 | `adaptive_escher/` | Persistent frozen-target critic and target cache |
 | `vr_deep_cfr/` | Inherited neural cumulative-regret and replay foundations |
-| `tests/` | Inherited no-limit rules, information boundaries, cache equivalence, resume and actors |
+| `tests/` | Fixed-limit rules, information boundaries, cache equivalence, resume and actors |
 | `docs/` | Baseline evidence, provenance and next implementation steps |
 
 The HUNL source history is retained in this independent local repository. No
 remote is configured. Ignored outputs, checkpoints, environments and build caches
 were not copied. The source HUNL repository is untouched.
 
-HULHE policy, model, encoder and continuation identifiers have their own namespace;
-existing HUNL checkpoints are not interchangeable. Fixed-limit conversion must
-version these contracts again where their shapes or semantics change.
+Policy checkpoint version 2 and encoder `hulhe_suit_canonical_limit_v2` reject
+HUNL and preparation-copy no-limit policies. Full continuation files also check
+the exact game and encoder contract. Start a new output directory for fixed-limit
+training; old no-limit runs cannot be resumed.

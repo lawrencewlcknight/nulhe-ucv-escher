@@ -3,7 +3,6 @@
   "source_commit": "cf456b3b1a8b41bd5f35fd6dd75059d9e13a8b44",
   "source_remote": null,
   "destination_project": "hulhe-ucv-escher",
-  "purpose": "Preparation baseline for heads-up fixed-limit Hold'em; game and learning behavior remain inherited no-limit until the next implementation step.",
   "copy_policy": "Independent local clone retaining source Git history; remote removed. No ignored outputs, weights, build products, caches or environments copied.",
   "inherited_provenance": "upstream/hunl_provenance.json",
   "source_files": {
@@ -167,5 +166,9 @@
       "source": "vr_deep_cfr/variants.py",
       "source_sha256": "bb53fde23d4f03c892197c79107f24445dc891696d759f80eb1161a05762b24a"
     }
-  }
+  },
+  "initial_copy_purpose": "Preparation baseline for heads-up fixed-limit Hold'em; game and learning behavior remain inherited no-limit until the next implementation step.",
+  "current_game_contract_id": "hulhe_fell_omen2_limit_v1",
+  "benchmark_opponent": "Fell Omen 2",
+  "game_interface_specification": "GAME_INTERFACE.md"
 }

@@ -1,4 +1,4 @@
-"""Suit-canonical cards with street identity and native FCPA betting history.
+"""Suit-canonical cards with street identity and fixed-limit betting history.
 
 The policy sees only its own cards and public events. Critics additionally see
 both players' hole cards. Flop, turn and river occupy separate channels; merging
@@ -10,10 +10,10 @@ import numpy as np
 import torch
 from torch import nn
 
-from .game import load_hulhe_game
+from .game import GAME_CONTRACT_ID, NUM_ACTIONS, load_hulhe_game, validate_hulhe_game
 from vr_deep_cfr.solver import SonnetLinear, ZeroInitLinear
 
-ENCODER_ID = "hulhe_suit_canonical_fcpa_v1"
+ENCODER_ID = "hulhe_suit_canonical_limit_v2"
 
 
 @dataclass(frozen=True)
@@ -42,12 +42,15 @@ class HULHEFeatureEncoder:
 
     def __init__(self):
         game = load_hulhe_game()
+        self._validated_game = game
         self.raw_size = game.information_state_tensor_size()
         self.history_slots = game.max_game_length()
-        if self.raw_size != 106 + 3 * self.history_slots:
-            raise ValueError("OpenSpiel FCPA tensor schema changed")
-        # Two player bits, native betting-history suffix, street, legal mask.
-        context_size = 2 + self.raw_size - 106 + 4 + 4
+        if (self.history_slots != 34 or self.raw_size != 208
+                or game.num_distinct_actions() != NUM_ACTIONS):
+            raise ValueError("OpenSpiel fixed-limit tensor schema changed")
+        # Two player bits, two action bits per history slot, street, legal mask.
+        # Native sizing channels are identically zero in the limit game.
+        context_size = 2 + 2 * self.history_slots + 4 + NUM_ACTIONS
         self.policy_layout = FeatureLayout("player_information_state", 208 + context_size, 208)
         self.full_state_layout = FeatureLayout("critic_full_state", 260 + context_size, 260)
 
@@ -60,17 +63,29 @@ class HULHEFeatureEncoder:
         return self.full_state_layout.total_size
 
     def metadata(self):
-        return {"id": self.encoder_id, "version": 1,
+        return {"id": self.encoder_id, "version": 2,
+                "game_contract_id": GAME_CONTRACT_ID,
                 "raw_open_spiel_size": self.raw_size,
+                "history_slots": self.history_slots,
                 "policy_layout": self.policy_layout.to_dict(),
                 "full_state_layout": self.full_state_layout.to_dict(),
                 "board_channels": ["flop", "turn", "river"],
-                "bet_amount_scale_chips": 20000}
+                "betting_history": "two native action bits per slot; zero sizing channels omitted",
+                "num_actions": NUM_ACTIONS}
+
+    def _validate_state_game(self, state):
+        game = state.get_game()
+        if game is not self._validated_game:
+            validate_hulhe_game(game)
+            self._validated_game = game
 
     def _raw(self, state, player):
+        self._validate_state_game(state)
         raw = np.asarray(state.information_state_tensor(player), dtype=np.float32)
         if raw.shape != (self.raw_size,):
             raise ValueError("State does not match the versioned HULHE tensor layout")
+        if np.any(raw[106 + 2 * self.history_slots:]):
+            raise ValueError("Unexpected nonzero fixed-limit sizing channels")
         return raw
 
     def _board(self, state):
@@ -89,12 +104,9 @@ class HULHEFeatureEncoder:
         street = np.zeros(4, dtype=np.float32)
         street[0 if board_count == 0 else min(3, board_count - 2)] = 1
         mask = np.asarray(state.legal_actions_mask(), dtype=np.float32)
-        if mask.shape != (4,):
-            raise ValueError("Encoder accepts the four-action FCPA game only")
-        betting = raw[106:].copy()
-        # Native history stores two action bits per slot followed by one chip
-        # amount per slot. Keep the bits unchanged and scale monetary inputs.
-        betting[2 * self.history_slots:] /= 20000.0
+        if mask.shape != (NUM_ACTIONS,):
+            raise ValueError("Encoder accepts the three-action fixed-limit game only")
+        betting = raw[106:106 + 2 * self.history_slots]
         return np.concatenate((raw[:2], betting, street, mask))
 
     def information_state(self, state, player=None):
@@ -108,6 +120,7 @@ class HULHEFeatureEncoder:
                                self._context(state, raw, count))).astype(np.float32)
 
     def full_state(self, state):
+        self._validate_state_game(state)
         if state.is_terminal():
             # Terminal replay rows carry the payoff and done mask; TD never
             # bootstraps from this placeholder.

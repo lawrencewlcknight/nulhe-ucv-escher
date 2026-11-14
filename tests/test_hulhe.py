@@ -51,9 +51,9 @@ def assert_models_equal(a, b, *, exact=True):
 
 
 def test_game_and_street_contract():
-    assert HULHE_GAME_PARAMETERS["betting"] == "nolimit"
-    assert HULHE_GAME_PARAMETERS["stack"] == "20000 20000"
-    assert load_hulhe_game().num_distinct_actions() == 4
+    assert HULHE_GAME_PARAMETERS["betting"] == "limit"
+    assert HULHE_GAME_PARAMETERS["maxRaises"] == "3 4 4 4"
+    assert load_hulhe_game().num_distinct_actions() == 3
     encoder = HULHEFeatureEncoder()
     for street, count in enumerate((0, 3, 4, 5)):
         state = state_at_street(street)
@@ -70,21 +70,13 @@ def test_game_and_street_contract():
     assert not encoder.full_state(state).any()
 
 
-def test_pot_raise_allin_and_terminal_payoffs():
+def test_fixed_raise_and_fold_payoff():
     state = state_at_street()
     state.apply_action(2)
-    assert "r300" in state.information_state_string(1)
+    assert list(state.observation_tensor(0)[-2:]) == [200.0, 100.0]
     assert HULHEFeatureEncoder().information_state(state).max() <= 1
     state.apply_action(0)
     assert state.is_terminal() and state.returns() == [100.0, -100.0]
-    state = state_at_street()
-    state.apply_action(3)
-    assert 2 not in state.legal_actions()
-    state.apply_action(1)
-    while state.is_chance_node():
-        state.apply_action(state.chance_outcomes()[0][0])
-    assert state.is_terminal() and sum(state.returns()) == 0
-    assert abs(state.returns()[0]) <= 20000
 
 
 def test_hidden_cards_do_not_leak_into_policy_and_suits_are_canonical():
@@ -111,18 +103,24 @@ def test_turn_and_river_order_is_retained():
     assert not np.array_equal(encoder.information_state(a), encoder.information_state(b))
 
 
-def test_control_variate_mean_and_sampler_support_for_four_actions():
-    values = np.array([-0.2, 0.1, 0.7, -0.6])
-    policy = np.array([0.1, 0.2, 0.4, 0.3])
-    proposal = residual_adaptive_sampling_policy([1, 2, 8, 4], np.ones(4), uniform_floor_mass=.2)
-    assert np.all(proposal >= .05)
-    average = np.zeros(4)
-    for action in range(4):
-        estimate = control_variate_advantage(np.array([2., -3., 1., .1]), beta=np.ones(4),
+@pytest.mark.parametrize("mask", [[1, 1, 1], [0, 1, 1], [1, 1, 0]])
+def test_control_variate_mean_and_sampler_support_for_limit_actions(mask):
+    values = np.array([-0.2, 0.1, 0.7])
+    mask = np.asarray(mask)
+    policy = np.array([0.1, 0.2, 0.7]) * mask
+    policy /= policy.sum()
+    proposal = residual_adaptive_sampling_policy([1, 2, 8], mask, uniform_floor_mass=.2)
+    legal = np.flatnonzero(mask)
+    assert np.all(proposal[legal] >= .2 / len(legal))
+    assert np.all(proposal[mask == 0] == 0)
+    average = np.zeros(3)
+    for action in legal:
+        estimate = control_variate_advantage(np.array([2., -3., 1.]), beta=np.ones(3),
             sampled_action=action, sample_probability=proposal[action], sampled_return=values[action],
-            policy=policy, legal_actions_mask=np.ones(4))
+            policy=policy, legal_actions_mask=mask)
         average += proposal[action] * estimate.advantages
-    np.testing.assert_allclose(average, values - policy @ values, atol=1e-14)
+    np.testing.assert_allclose(average[legal], (values - policy @ values)[legal], atol=1e-14)
+    assert np.all(average[mask == 0] == 0)
 
 
 def test_checkpoint_reloads_legal_policy(tmp_path):

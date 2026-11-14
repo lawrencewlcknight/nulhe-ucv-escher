@@ -1,8 +1,9 @@
 # Inherited UCV-ESCHER baseline
 
 This document describes the source HUNL implementation and its evidence. The
-HULHE preparation copy retains those game rules and learner settings unchanged;
-fixed-limit conversion is the first item in [HULHE_PLAN.md](HULHE_PLAN.md).
+HULHE project retains the learner settings, but has replaced the no-limit game
+and encoder with the [fixed-limit interface](GAME_INTERFACE.md). The HUNL-specific
+section below is historical and does not describe the current game.
 Package references below use the new namespace.
 
 ## Decision

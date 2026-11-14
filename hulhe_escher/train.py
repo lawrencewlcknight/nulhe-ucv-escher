@@ -1,4 +1,4 @@
-"""HULHE preparation baseline: inherited no-limit rules, pending limit conversion.
+"""Train HULHE UCV-ESCHER in the Fell Omen 2 fixed-limit game.
 
 Bounded local training and resumable smoke runs; never submits cloud jobs."""
 import argparse

@@ -11,11 +11,11 @@ from typing import Mapping, Optional
 import numpy as np
 from open_spiel.python import policy
 
-from .game import HULHE_GAME_PARAMETERS, serialisable_game_definition
+from .game import serialisable_game_definition, validate_hulhe_game
 
 
 CHECKPOINT_TYPE = "hulhe_ucv_escher_policy_checkpoint"
-CHECKPOINT_VERSION = 1
+CHECKPOINT_VERSION = 2
 
 
 def sha256_file(path: str | Path) -> str:
@@ -95,8 +95,7 @@ def load_checkpoint_payload(path: str | Path) -> dict:
         raise ValueError(f"Unsupported checkpoint type: {payload.get('type')!r}")
     if int(payload.get("version", -1)) != CHECKPOINT_VERSION:
         raise ValueError(f"Unsupported checkpoint version: {payload.get('version')!r}")
-    parameters = payload.get("game", {}).get("parameters")
-    if parameters != dict(HULHE_GAME_PARAMETERS):
+    if payload.get("game") != serialisable_game_definition():
         raise ValueError("Checkpoint does not use the canonical HULHE game definition")
     return payload
 
@@ -114,6 +113,7 @@ class LoadedHULHEPolicy(policy.Policy):
         )
         from vr_deep_cfr.solver import MLP
 
+        validate_hulhe_game(game)
         super().__init__(game, list(range(game.num_players())))
         self.game = game
         self.checkpoint_path = Path(checkpoint_path)

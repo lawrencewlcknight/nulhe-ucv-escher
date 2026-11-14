@@ -1,1 +1,1 @@
-"""Heads-up limit Holdem project; inherited no-limit base pending conversion."""
+"""Heads-up fixed-limit Hold'em UCV-ESCHER, targeting Fell Omen 2."""
