@@ -1,13 +1,16 @@
 # Verification
 
 The current suite validates the fixed-limit game and the learner boundary.
-Fell Omen 2 itself is not connected yet; this is not a head-to-head benchmark.
+The opt-in opponent suite tests the actual pinned Java core and strategy tables.
+These are integration checks, not a playing-strength benchmark.
 
 Use the pinned dependencies and Python 3.10–3.12.
 
 ```bash
 python -m pytest -q
 RUN_RAY_TESTS=1 python -m pytest -q -m ray
+python -m hulhe_escher.fo2_setup
+RUN_FO2_TESTS=1 python -m pytest -q -m fo2
 python -m hulhe_escher.train --smoke --iterations 2 --output outputs/smoke
 python -m hulhe_escher.train --smoke --iterations 3 --output outputs/smoke --resume
 ```
@@ -57,3 +60,20 @@ The following results describe commit `f025fe7`, before fixed-limit conversion.
 Validation used Python 3.12, NumPy 1.26.4, PyTorch 2.7.0, OpenSpiel 1.6.3 and
 Ray 2.51.2. The available test environment had pytest 9.0.2; the declared dev
 extra remains pytest 8.x as inherited. No full-budget training was run.
+
+## Opponent integration validation — 2026-11-14
+
+See [FELL_OMEN2.md](docs/FELL_OMEN2.md) for the bridge's reference comparisons,
+strict free-fold rejection, explicit policy adaptation and reproducibility tests.
+A 40-hand strict match against a tiny learned checkpoint completed without
+substitutions; setup and training are not part of the timed match loop.
+
+* Full suite with `RUN_FO2_TESTS=1`: 34 passed, 1 skipped in 9 seconds. The
+  unchanged learner's opt-in Ray test was not rerun for this integration.
+* Built and installed the version 0.3.0 wheel in a separate environment. From
+  outside the checkout, the installed `hulhe-evaluate` reproduced all 40 logged
+  hands exactly, using the same checkpoint, assets and seed.
+* The source and installed match loops took approximately 1.6 and 1.2 seconds,
+  respectively. Both used strict rejection and made 94 opponent decisions.
+* Verified that the wheel includes the Java bridge sources and pinned asset
+  manifest, without bundling upstream binaries or strategy archives.

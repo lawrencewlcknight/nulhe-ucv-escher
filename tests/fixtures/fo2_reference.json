@@ -1,0 +1,276 @@
+{
+  "upstream_commit": "916315f87e78cec33369ebd404170d2cb219c7b3",
+  "method": "Original Java decision methods and original ZIP reader, with probability capture before sampling; uncached original classification.",
+  "cases": [
+    {
+      "request": {
+        "hole": "2c 3d",
+        "board": "",
+        "street": 0,
+        "actor": 0,
+        "raises": 0,
+        "preflop": -1,
+        "flop": -1,
+        "turn": -1,
+        "history": ""
+      },
+      "expected": {
+        "probabilities": [
+          0.982852,
+          0.00115933,
+          0.0159888
+        ],
+        "table": "p2_strategy_5.txt",
+        "bucket": 13,
+        "flop_bucket": -1,
+        "node": 5,
+        "hand_strength": 0.0,
+        "positive_potential": 0.0,
+        "negative_potential": 0.0
+      }
+    },
+    {
+      "request": {
+        "hole": "4h 5s",
+        "board": "",
+        "street": 0,
+        "actor": 1,
+        "raises": 0,
+        "preflop": -1,
+        "flop": -1,
+        "turn": -1,
+        "history": "c"
+      },
+      "expected": {
+        "probabilities": [
+          0.0,
+          0.136977,
+          0.863023
+        ],
+        "table": "p1_strategy_10.txt",
+        "bucket": 41,
+        "flop_bucket": -1,
+        "node": 10,
+        "hand_strength": 0.0,
+        "positive_potential": 0.0,
+        "negative_potential": 0.0
+      }
+    },
+    {
+      "request": {
+        "hole": "4h 5s",
+        "board": "7c 8d 9h",
+        "street": 1,
+        "actor": 1,
+        "raises": 0,
+        "preflop": 8,
+        "flop": -1,
+        "turn": -1,
+        "history": "cc/"
+      },
+      "expected": {
+        "probabilities": [
+          0.0,
+          0.912508,
+          0.0874922
+        ],
+        "table": "p1_strategy82_5.txt",
+        "bucket": 9,
+        "flop_bucket": 2,
+        "node": 5,
+        "hand_strength": 0.06290471785383904,
+        "positive_potential": 0.2122863199900237,
+        "negative_potential": 0.40339895303398954
+      }
+    },
+    {
+      "request": {
+        "hole": "2c 3d",
+        "board": "7c 8d 9h",
+        "street": 1,
+        "actor": 0,
+        "raises": 0,
+        "preflop": 8,
+        "flop": -1,
+        "turn": -1,
+        "history": "cc/c"
+      },
+      "expected": {
+        "probabilities": [
+          0.0,
+          7.52002e-21,
+          1.0
+        ],
+        "table": "p2_strategy82_10.txt",
+        "bucket": 0,
+        "flop_bucket": 2,
+        "node": 10,
+        "hand_strength": 0.0037002775208140612,
+        "positive_potential": 0.13452499917897037,
+        "negative_potential": 0.005050505050505051
+      }
+    },
+    {
+      "request": {
+        "hole": "4h 5s",
+        "board": "7c 8d 9h Ts",
+        "street": 2,
+        "actor": 1,
+        "raises": 0,
+        "preflop": 8,
+        "flop": 8,
+        "turn": -1,
+        "history": "cc/cc/"
+      },
+      "expected": {
+        "probabilities": [
+          0.0,
+          0.878054,
+          0.121946
+        ],
+        "table": "p1_strategy8280_5.txt",
+        "bucket": 1,
+        "flop_bucket": 2,
+        "node": 5,
+        "hand_strength": 0.05410628019323672,
+        "positive_potential": 0.09504343382728667,
+        "negative_potential": 0.34139626352015734
+      }
+    },
+    {
+      "request": {
+        "hole": "2c 3d",
+        "board": "7c 8d 9h Ts",
+        "street": 2,
+        "actor": 0,
+        "raises": 0,
+        "preflop": 8,
+        "flop": 8,
+        "turn": -1,
+        "history": "cc/cc/c"
+      },
+      "expected": {
+        "probabilities": [
+          0.0,
+          0.0239197,
+          0.97608
+        ],
+        "table": "p2_strategy8280_10.txt",
+        "bucket": 1,
+        "flop_bucket": 2,
+        "node": 10,
+        "hand_strength": 0.003864734299516908,
+        "positive_potential": 0.1172462127338401,
+        "negative_potential": 0.0
+      }
+    },
+    {
+      "request": {
+        "hole": "4h 5s",
+        "board": "7c 8d 9h Ts Qc",
+        "street": 3,
+        "actor": 1,
+        "raises": 0,
+        "preflop": 8,
+        "flop": 8,
+        "turn": 8,
+        "history": "cc/cc/cc/"
+      },
+      "expected": {
+        "probabilities": [
+          0.308218,
+          0.426898,
+          0.264884
+        ],
+        "table": "p1_strategy828080_5.txt",
+        "bucket": 1,
+        "flop_bucket": 2,
+        "node": 5,
+        "hand_strength": 0.03636363636363636,
+        "positive_potential": 0.0,
+        "negative_potential": 0.0
+      }
+    },
+    {
+      "request": {
+        "hole": "2c 3d",
+        "board": "7c 8d 9h Ts Qc",
+        "street": 3,
+        "actor": 0,
+        "raises": 0,
+        "preflop": 8,
+        "flop": 8,
+        "turn": 8,
+        "history": "cc/cc/cc/c"
+      },
+      "expected": {
+        "probabilities": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "table": "p2_strategy828080_10.txt",
+        "bucket": 1,
+        "flop_bucket": 2,
+        "node": 10,
+        "hand_strength": 0.03636363636363636,
+        "positive_potential": 0.0,
+        "negative_potential": 0.0
+      }
+    },
+    {
+      "request": {
+        "hole": "4h 5s",
+        "board": "",
+        "street": 0,
+        "actor": 1,
+        "raises": 3,
+        "preflop": -1,
+        "flop": -1,
+        "turn": -1,
+        "history": "rrr"
+      },
+      "expected": {
+        "probabilities": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "table": "p1_strategy_2.txt",
+        "bucket": 41,
+        "flop_bucket": -1,
+        "node": 2,
+        "hand_strength": 0.0,
+        "positive_potential": 0.0,
+        "negative_potential": 0.0
+      }
+    },
+    {
+      "request": {
+        "hole": "Ac Ad",
+        "board": "2h 2s 3c 3d 3h",
+        "street": 3,
+        "actor": 0,
+        "raises": 0,
+        "preflop": 8,
+        "flop": 0,
+        "turn": 0,
+        "history": "cc/rrrrc/rrrrc/c"
+      },
+      "expected": {
+        "probabilities": [
+          0.0,
+          0.00460045,
+          0.9954
+        ],
+        "table": "p2_strategy800000_10.txt",
+        "bucket": 70,
+        "flop_bucket": 0,
+        "node": 10,
+        "hand_strength": 0.9535353535353536,
+        "positive_potential": 0.0,
+        "negative_potential": 0.0
+      }
+    }
+  ]
+}

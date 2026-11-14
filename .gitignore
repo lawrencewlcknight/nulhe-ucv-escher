@@ -11,3 +11,4 @@ cloud_outputs/
 *.pt
 *.pkl
 .env
+.cache/

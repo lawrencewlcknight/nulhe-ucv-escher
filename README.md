@@ -22,9 +22,10 @@ budgets are unchanged; network and replay dimensions follow the new interface.
 See [the game-interface specification](docs/GAME_INTERFACE.md) for evidence,
 seat conventions and the complete feature layout.
 
-**Status:** fixed-limit self-play and checkpoint/resume are implemented.
-The Fell Omen 2 opponent adapter and head-to-head evaluation are still pending;
-no playing-strength result is claimed. See [the development plan](docs/HULHE_PLAN.md).
+**Status:** fixed-limit self-play, checkpoint/resume and local Fell Omen 2
+matches are implemented. See [the opponent interface](docs/FELL_OMEN2.md) for
+setup, lightweight tests and the known upstream free-fold incompatibility.
+No playing-strength result is claimed. See [the development plan](docs/HULHE_PLAN.md).
 
 ## Install
 
@@ -99,3 +100,18 @@ Policy checkpoint version 2 and encoder `hulhe_suit_canonical_limit_v2` reject
 HUNL and preparation-copy no-limit policies. Full continuation files also check
 the exact game and encoder contract. Start a new output directory for fixed-limit
 training; old no-limit runs cannot be resumed.
+
+## Play a checkpoint against Fell Omen 2
+
+With a JDK installed, prepare the pinned opponent once and run a small match:
+
+```bash
+python -m hulhe_escher.fo2_setup
+RUN_FO2_TESTS=1 python -m pytest -q -m fo2
+python -m hulhe_escher.evaluate --checkpoint outputs/smoke/policy_000003.pkl \
+  --pairs 20 --seed 20261114 --output outputs/fo2-evaluation
+```
+
+This runs 40 hands with paired deals and exchanged seats. The default rejects
+incompatible opponent actions and logs failures; it does not silently alter
+the strategy. See [FELL_OMEN2.md](docs/FELL_OMEN2.md) before longer benchmarks.

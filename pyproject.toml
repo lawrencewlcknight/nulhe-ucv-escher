@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hulhe-ucv-escher"
-version = "0.2.0"
+version = "0.3.0"
 description = "UCV-ESCHER for heads-up fixed-limit Hold'em against Fell Omen 2"
 requires-python = ">=3.10,<3.13"
 dependencies = [
@@ -17,14 +17,16 @@ dev = ["pytest>=8,<9"]
 
 [project.scripts]
 hulhe-train = "hulhe_escher.train:main"
+hulhe-evaluate = "hulhe_escher.evaluate:main"
+hulhe-fo2-setup = "hulhe_escher.fo2_setup:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["hulhe_escher*", "unbiased_escher*", "adaptive_escher*", "vr_deep_cfr*"]
 
 [tool.setuptools.package-data]
-hulhe_escher = ["data/*.json"]
+hulhe_escher = ["data/*.json", "java/*.java"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["ray: real local Ray actors (opt-in via RUN_RAY_TESTS=1)"]
+markers = ["ray: real local Ray actors (opt-in via RUN_RAY_TESTS=1)", "fo2: real Fell Omen 2 bridge (opt-in via RUN_FO2_TESTS=1)"]

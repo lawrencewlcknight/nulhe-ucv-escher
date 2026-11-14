@@ -1,0 +1,138 @@
+{
+  "opponent": "Fell Omen 2 (Maverick mirror)",
+  "commit": "916315f87e78cec33369ebd404170d2cb219c7b3",
+  "files": [
+    {
+      "path": "src/com/ibot/FellOmen_2_Impl.java",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend/src/com/ibot/FellOmen_2_Impl.java",
+      "sha256": "63483e732bf0f455c03cdb81874659dbca84e299de5ccb577e8e7c940ce56dc2",
+      "git_blob": "27c09f45e749b71f6f51fec7868e426a64b51af9"
+    },
+    {
+      "path": "src/poker/HandEvaluator.java",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend-commons/src/poker/HandEvaluator.java",
+      "sha256": "ec87b2c426c4c1ba3f9ea688621341129c5da5c81b2baebce7bf95a003e96cdd",
+      "git_blob": "f6ee32d39b44ef4be92eab7875e3563936cacaad"
+    },
+    {
+      "path": "src/poker/ai/HandPotential.java",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend/src/poker/ai/HandPotential.java",
+      "sha256": "0b15dc558bab8d4a230783c76193d109668babea9a2f127cce1780b4dbbfc4e9",
+      "git_blob": "6e6a0bcbd1c27e36110ddcd702e7372317c54e6e"
+    },
+    {
+      "path": "src/com/biotools/meerkat/Card.java",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend-commons/src/com/biotools/meerkat/Card.java",
+      "sha256": "eb225a324ac9014986fc2d694ae9a31bc4d6e6b6d95f4ff1f4f5d13e759dcb62",
+      "git_blob": "643324f245d47ccdafdd0e540672e89ecefc01b6"
+    },
+    {
+      "path": "src/org/pokersource/eval/PortedHandEval.java",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend-commons/src/org/pokersource/eval/PortedHandEval.java",
+      "sha256": "21c1a03dffec7312f34f4bda867724f63e420321a662b4c6d8ff124b27bd9ec3",
+      "git_blob": "9f370f6b894dca7c0562bd566e7de61710ad2e74"
+    },
+    {
+      "path": "meerkat.jar",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend/libs/meerkat.jar",
+      "sha256": "921c2c3ecf6466019b3dc3ee5d95b89b86f0f61804bbbcd7e05f641a3615f2e0",
+      "git_blob": "b8f908a2a33f88859adde4f48fa5b8c49ae8c891"
+    },
+    {
+      "path": "licenses/GPL-2.0.txt",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/LICENSE",
+      "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643",
+      "git_blob": "d159169d1050894d3ea3b98e1c965c4058208fe1"
+    },
+    {
+      "path": "licenses/Alberta.txt",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend/src/poker/Liscence.txt",
+      "sha256": "f1ff6957feab63cec60d72d297233840827e72c3aaff5bde386298d1ae6499f4",
+      "git_blob": "b1d840620a76705540384fe21eb379d20ee9a2f5"
+    },
+    {
+      "path": "licenses/Strategy-info.txt",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend/Strategy_FellOmen_2/info.txt",
+      "sha256": "ba12b337e8c0a286a05b226c09fc8077ead3458ddae498e82338cdcc861b9ba2",
+      "git_blob": "77152b89b383f22cb8bd6194ff73a02129ed931f"
+    },
+    {
+      "path": "src/org/pokersource/eval/tables/CardMasks.java",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend-commons/src/org/pokersource/eval/tables/CardMasks.java",
+      "sha256": "5eb1081d6e6c995569a15fc79905de9d879e300deac9f18c84af93885b1ca2b0",
+      "git_blob": "61f5cc030190719ad4236c2451df1184e3f9ec9a"
+    },
+    {
+      "path": "src/org/pokersource/eval/tables/NBitsTable.java",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend-commons/src/org/pokersource/eval/tables/NBitsTable.java",
+      "sha256": "972333a954eae93dfa9d5108819c3cfa45f40e32d925207a9a605c4ad1bd8b7e",
+      "git_blob": "60a8b36ada339c19246413b251d5b95ee93133e1"
+    },
+    {
+      "path": "src/org/pokersource/eval/tables/StraightTable.java",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend-commons/src/org/pokersource/eval/tables/StraightTable.java",
+      "sha256": "b758a2e8e5d8ce4ac2be0391f07b3ee05908fdd81828a5b6e7ad18cfe1d3d108",
+      "git_blob": "980e4cb8bf2197cc7ca72bf7211b3fb61033070f"
+    },
+    {
+      "path": "src/org/pokersource/eval/tables/TopCardTable.java",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend-commons/src/org/pokersource/eval/tables/TopCardTable.java",
+      "sha256": "2d02aaf56defc0e77ae2edff0e848e7127c65c9a2a0f7fc15b109c983092535a",
+      "git_blob": "5f4f78a012b14b67b7efcdafae82540ccb797ecc"
+    },
+    {
+      "path": "src/org/pokersource/eval/tables/TopFiveCardsTable.java",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend-commons/src/org/pokersource/eval/tables/TopFiveCardsTable.java",
+      "sha256": "d52d4679843d83739dc1cabd115aa87a8ce55b97c218725baf4de00eb89e3212",
+      "git_blob": "d08e116df0540f720399d5cf46e908d194e1e53f"
+    },
+    {
+      "path": "Strategy_FellOmen_2/1.zip",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend/Strategy_FellOmen_2/1.zip",
+      "sha256": "a6bf179b02501fb030c59b13f6c29626053733e77119c3534a5fe0b4e3abafdd",
+      "git_blob": "ce5bd8fc831c359cd72fa5ed48256ee1a2ecc996"
+    },
+    {
+      "path": "Strategy_FellOmen_2/2.zip",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend/Strategy_FellOmen_2/2.zip",
+      "sha256": "a034f5fad6486b932363f816977ca18782de86a932807055451baaa81cb4339f",
+      "git_blob": "5b6778fc79bd32b6270bbd955fa9c6be3a0f0114"
+    },
+    {
+      "path": "Strategy_FellOmen_2/3.zip",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend/Strategy_FellOmen_2/3.zip",
+      "sha256": "b7866b22ab78c9c109da79b32aabd1cc7a26ab6a44a3d35409d17011db252af6",
+      "git_blob": "5a80a3735ad2fea67a1a52170150341af999c5ca"
+    },
+    {
+      "path": "Strategy_FellOmen_2/4.zip",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend/Strategy_FellOmen_2/4.zip",
+      "sha256": "a4c4b06a398a6fe0c1fa0603e0d4198d37089b3a7984738d7d0d589a57aac6f9",
+      "git_blob": "2fbd62b3ab6bb7ff055eea7852f8da283476a831"
+    },
+    {
+      "path": "Strategy_FellOmen_2/5.zip",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend/Strategy_FellOmen_2/5.zip",
+      "sha256": "35a6979e1c8f981a2fae3fedd58bb62ae5663e360659edb1425e72e865ae1e13",
+      "git_blob": "e18d132656169ec427708b396422fc158a28cada"
+    },
+    {
+      "path": "Strategy_FellOmen_2/6.zip",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend/Strategy_FellOmen_2/6.zip",
+      "sha256": "f49ffee0361f67b605e82049f526857f9390a2da6cef98f5e1b6c6b8b3ad36c3",
+      "git_blob": "9694b3a78f4f9e1dfcfd8e652328c4111ced6b7a"
+    },
+    {
+      "path": "Strategy_FellOmen_2/7.zip",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend/Strategy_FellOmen_2/7.zip",
+      "sha256": "172188f8c3e6e2923165a7aa312f56cb8720e6d1756cb3a019932aefc3df3065",
+      "git_blob": "b489ff2e02dfe08ee7b77ba8682a56a6fac20411"
+    },
+    {
+      "path": "reference/FellOmen_2.java",
+      "url": "https://raw.githubusercontent.com/gioannid/maverick-bot/916315f87e78cec33369ebd404170d2cb219c7b3/maverick-backend/src/poker/FellOmen_2.java",
+      "sha256": "c6e49ce8dacd878c37880aa5ea3caa380de5ebb57e19947418449dfaf8e2cd63",
+      "git_blob": "3e1033dbde4aeff90200cd2a6a1563d54094cd36"
+    }
+  ]
+}

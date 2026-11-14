@@ -62,9 +62,11 @@ The chip scale is a project convention: 100 chips is one small bet/big blind,
 parameter is supplied: OpenSpiel's ACPC limit parser ignores it and uses an
 effectively unlimited bankroll. The finite betting caps bound losses to 2,400.
 
-This establishes the intended game contract. It does not establish executable
-Fell Omen 2 adapter parity: card encoding, event ordering, history/table mapping
-and seat rotation must still be tested when the opponent is integrated.
+The [opponent bridge](FELL_OMEN2.md) now validates card encoding, history mapping,
+table lookup and seat rotation against the pinned Java implementation. It also
+documents an upstream free-fold incompatibility: strict mode rejects such a
+request, while an explicit adaptation can transfer that probability to check.
+This does not change the OpenSpiel game contract.
 
 ## State and feature contract
 
