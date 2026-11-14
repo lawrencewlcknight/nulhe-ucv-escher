@@ -107,7 +107,7 @@ def test_longest_capped_hand_and_payoff_units():
     assert not encoder.full_state(state).any()
     game = load_hulhe_game()
     assert (game.min_utility(), game.max_utility()) == (-2400, 2400)
-    assert (encoder.raw_size, encoder.policy_size, encoder.full_state_size) == (208, 285, 337)
+    assert (encoder.raw_size, encoder.policy_size, encoder.full_state_size) == (208, 412, 595)
     assert serialisable_game_definition()["small_bet_chips"] == 100
 
 

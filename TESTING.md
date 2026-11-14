@@ -4,6 +4,31 @@ The current suite validates the fixed-limit game and the learner boundary.
 The opt-in opponent suite tests the actual pinned Java core and strategy tables.
 These are integration checks, not a playing-strength benchmark.
 
+## Strategic representation validation — 2026-11-14
+
+* V3 feature suite plus existing game/learner/opponent tests: **42 passed**, with
+  the opt-in Ray test skipped in that invocation (17.6 seconds).
+* Real two-actor collection and exact parallel continuation: **1 passed**
+  separately (15.5 seconds), outside the macOS process-inspection sandbox.
+* Ranking verified against independent enumeration of every five-card subset
+  for 1,500 random five/six/seven-card hands plus pathological cases, and against
+  OpenSpiel outcomes on 100 deals. Exact draws, nuts/ties, hidden-information
+  boundaries, all suit permutations and public betting branches also pass.
+* Three smoke training iterations wrote a new v3 checkpoint. It completed
+  20 duplicate pairs / 40 hands against strict Fell Omen 2 in 2.7 seconds,
+  without action conversion. This is not evidence of playing strength.
+* Built/installed v0.4.0 outside the checkout: its evaluation reproduced every
+  hand exactly. The installed loader also loaded the original v2 checkpoint.
+* A 128-state timing check (32 deals per street) measured 5.72 ms per cold policy
+  encoding and 0.10 ms warm; critic encodings measured 5.48 ms after the policy
+  pass and 0.14 ms warm. These are local feature timings, not training throughput.
+  Policy parameters increased from 80,771 to 101,251. Full default replay adds
+  4,604,000,000 bytes of feature storage.
+
+See [the design review](docs/STRATEGIC_FEATURES.md) for feature definitions,
+approximation limits and fresh-training requirements. Tests used the same pinned
+runtime dependencies as below, with pytest 9.0.2 available locally.
+
 Use the pinned dependencies and Python 3.10–3.12.
 
 ```bash

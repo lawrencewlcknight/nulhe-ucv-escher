@@ -75,18 +75,21 @@ states supply `chance_outcomes()`, `current_player()`, `legal_actions()`,
 `legal_actions_mask()`, `child()`/`apply_action()` and terminal `returns()`.
 Action ids are meaningful only at player nodes: chance action ids are card ids.
 
-Encoder id: `hulhe_suit_canonical_limit_v2`. Inputs are float32. Policy,
+Encoder id: `hulhe_strategic_limit_v3` (see [design review](STRATEGIC_FEATURES.md)). Inputs are float32. Policy,
 regret and calibration networks receive only the acting player's information.
 Critics additionally receive both players' private cards.
 
 | Feature block | Policy length | Critic length |
 |---|---:|---:|
 | Hole cards, flop, turn and river, each with 52 card indicators | 208 | 260 |
+| Strategic card descriptors | 90 | 180 |
+| Exact current comparison (critic only) | 0 | 4 |
 | Player identity | 2 | 2 |
 | Native public action history: 34 slots × 2 bits | 68 | 68 |
 | Street one-hot | 4 | 4 |
+| Betting economics and interactions | 37 | 74 |
 | Legal-action mask | 3 | 3 |
-| **Total** | **285** | **337** |
+| **Total** | **412** | **595** |
 
 Cards retain global suit canonicalisation; flop cards are unordered, while turn
 and river have separate channels. Policy canonicalisation never sees the
@@ -94,8 +97,7 @@ opponent's cards. The native OpenSpiel tensor has 208 values: 2 player bits,
 52 private-card bits, 52 public-card bits, 68 history bits and 34 sizing values.
 In this pinned limit game the sizing values are always zero, so they are checked
 and omitted. Fixed stakes and the retained history determine contributions.
-No no-limit stack-size scaling remains in the encoder. All feature values are
-binary. History includes deal slots, preserving street boundaries.
+No no-limit stack-size scaling remains in the encoder. Exact channels are binary; derived features are bounded in [0,1]. History includes deal slots, preserving street boundaries.
 
 The longest legal history has 32 events (nine dealt cards and 23 decisions),
 within the engine's 34-slot allocation. Tests exercise this path and the caps
@@ -107,4 +109,5 @@ and encoder. Its estimator, optimizer, sampling scheme and training budgets
 are unchanged. Policy checkpoint version 2 includes the exact game contract;
 continuation restores also check the game and encoder metadata. Neither the
 old HUNL checkpoints nor the renamed no-limit preparation checkpoints can be
-used for this game. Start a fresh run.
+used for this game. V2 fixed-limit policies remain evaluable, but the v3
+representation requires a fresh training run and rejects old replay.

@@ -2,7 +2,7 @@
 
 The interface uses OpenSpiel as the sole dealer/rules engine and a persistent
 Java process as the opponent. It supports existing version-2 learned-policy
-checkpoints. No training, GPU, network service or Maverick application is needed
+checkpoints, including both legacy v2 and strategic v3 encoders. No training, GPU, network service or Maverick application is needed
 for a match.
 
 ## Setup and lightweight run

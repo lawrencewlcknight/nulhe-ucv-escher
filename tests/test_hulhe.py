@@ -168,6 +168,12 @@ def test_complete_state_resume_matches_uninterrupted(tmp_path):
     solver.iteration()
     expected = model_states(solver)
     expected_nodes = solver.nodes_touched
+    # Derived features must regenerate identically after a cold process restart.
+    from hulhe_escher.card_features import _card_features, critic_comparison
+    from hulhe_escher.betting_features import _public_economics
+    _card_features.cache_clear()
+    critic_comparison.cache_clear()
+    _public_economics.cache_clear()
     restored = make_solver(config, seed=43)
     restore_training_state(restored, read_training_state(tmp_path / "state"), **kwargs)
     restored.iteration()

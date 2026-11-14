@@ -11,6 +11,10 @@ Rules tests cover betting caps, blind option, check-raises, settlement, informat
 boundaries and incompatible checkpoints. The inherited learning budgets remain
 unchanged, including 2,500 updates per critic fit.
 
+The [v3 strategic representation](STRATEGIC_FEATURES.md) now extends the exact
+state with strength, potential and betting-economics inputs. This is the default
+for fresh training; its benefit to playing strength remains to be measured.
+
 ## Next iterations
 
 The pinned Java opponent bridge and duplicate-deal match runner are implemented

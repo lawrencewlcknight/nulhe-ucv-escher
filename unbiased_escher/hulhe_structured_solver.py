@@ -215,6 +215,7 @@ class StructuredHULHEResidualCalibrationTrainer(ResidualCalibrationTrainer):
             "residual_calibration",
             self.feature_size,
             feature_encoder.policy_layout.card_size,
+            feature_encoder.policy_layout.strategic_size,
         )
         hidden_layers = list(hidden_layers)
         self.model = StructuredHULHEMLP(

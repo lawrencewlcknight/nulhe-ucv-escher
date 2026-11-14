@@ -15,10 +15,12 @@ The game interface uses **OpenSpiel 1.6.3 `universal_poker`**:
 * Independent, rake-free hands with nonbinding bankrolls. Returns are chips;
   divide by 100 for small bets (big blinds), or 200 for big bets.
 
-The versioned encoder supplies **285 policy inputs** and **337 critic inputs**.
-It preserves betting history, suit symmetry, separate flop/turn/river channels,
-legal actions and hidden-card boundaries. The learning procedure and numerical
-budgets are unchanged; network and replay dimensions follow the new interface.
+The strategic encoder supplies **412 policy inputs** and **595 critic inputs**.
+It preserves exact cards and betting history, and adds hand strength, draw
+potential, board texture, pot odds and betting interactions. Three network
+branches process exact cards, strategic card descriptors and betting context.
+See [the representation review](docs/STRATEGIC_FEATURES.md) for exact versus sampled
+statistics, costs and design choices. Learning objectives and budgets are unchanged.
 See [the game-interface specification](docs/GAME_INTERFACE.md) for evidence,
 seat conventions and the complete feature layout.
 
@@ -96,10 +98,10 @@ The HUNL source history is retained in this independent local repository. No
 remote is configured. Ignored outputs, checkpoints, environments and build caches
 were not copied. The source HUNL repository is untouched.
 
-Policy checkpoint version 2 and encoder `hulhe_suit_canonical_limit_v2` reject
-HUNL and preparation-copy no-limit policies. Full continuation files also check
-the exact game and encoder contract. Start a new output directory for fixed-limit
-training; old no-limit runs cannot be resumed.
+The default encoder is `hulhe_strategic_limit_v3`. Policy checkpoint format 2
+supports both this encoder and the original fixed-limit v2 encoder for evaluation.
+Full continuation checks the exact game and encoder: **start fresh training for
+v3**. Old v2 replay cannot be reused. HUNL/preparation-copy policies remain rejected.
 
 ## Play a checkpoint against Fell Omen 2
 

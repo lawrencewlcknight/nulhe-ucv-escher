@@ -13,7 +13,8 @@ from torch import nn
 from .game import GAME_CONTRACT_ID, NUM_ACTIONS, load_hulhe_game, validate_hulhe_game
 from vr_deep_cfr.solver import SonnetLinear, ZeroInitLinear
 
-ENCODER_ID = "hulhe_suit_canonical_limit_v2"
+LEGACY_ENCODER_ID = "hulhe_suit_canonical_limit_v2"
+ENCODER_ID = "hulhe_strategic_limit_v3"
 
 
 @dataclass(frozen=True)
@@ -21,13 +22,17 @@ class FeatureLayout:
     name: str
     total_size: int
     card_size: int
+    strategic_size: int = 0
 
     @property
     def context_size(self):
-        return self.total_size - self.card_size
+        return self.total_size - self.card_size - self.strategic_size
 
     def to_dict(self):
-        return dict(name=self.name, total_size=self.total_size, card_size=self.card_size)
+        result = dict(name=self.name, total_size=self.total_size, card_size=self.card_size)
+        if self.strategic_size:
+            result["strategic_size"] = self.strategic_size
+        return result
 
 
 def _canonicalise_suits(*channels):
@@ -37,8 +42,8 @@ def _canonicalise_suits(*channels):
     return tuple(channel[order].reshape(-1) for channel in channels)
 
 
-class HULHEFeatureEncoder:
-    encoder_id = ENCODER_ID
+class LegacyHULHEFeatureEncoder:
+    encoder_id = LEGACY_ENCODER_ID
 
     def __init__(self):
         game = load_hulhe_game()
@@ -135,10 +140,82 @@ class HULHEFeatureEncoder:
                                self._context(state, raw[player], count))).astype(np.float32)
 
 
+class HULHEFeatureEncoder(LegacyHULHEFeatureEncoder):
+    """Exact information state plus strategic summaries; no lossy bucketing."""
+    encoder_id = ENCODER_ID
+
+    def __init__(self):
+        super().__init__()
+        from .card_features import CARD_NAMES
+        from .betting_features import BETTING_NAMES
+        self.policy_layout = FeatureLayout("strategic_player_v3",
+            285 + len(CARD_NAMES) + len(BETTING_NAMES), 208, len(CARD_NAMES))
+        self.full_state_layout = FeatureLayout("strategic_critic_v3",
+            337 + 2*len(CARD_NAMES) + 2*len(BETTING_NAMES) + 4,
+            260, 2*len(CARD_NAMES) + 4)
+
+    def metadata(self):
+        from .card_features import feature_spec
+        from .betting_features import BETTING_NAMES
+        return {**super().metadata(), "version": 3,
+                "base_encoder_id": LEGACY_ENCODER_ID,
+                "strategic_cards": feature_spec(), "betting_features": list(BETTING_NAMES),
+                "feature_order": "canonical cards; strategic cards; player/history/street; economics; legal mask",
+                "critic_extra_order": "player0, player1, exact current comparison; economics player0 then player1",
+                "critic_comparison": ["available", "player0_current_win", "current_tie", "player1_current_win"],
+                "public_cache_entries": 4096, "critic_comparison_cache_entries": 8192,
+                "normalisation": "bounded [0,1]; pot/4800, commitments/2400, round/800, cost/200; signed interactions shifted",
+                "information_preservation": "all v2 exact channels retained; no buckets or action overrides"}
+
+    @staticmethod
+    def _ids(channel):
+        suits, ranks = np.nonzero(channel)
+        return tuple(sorted(map(int, 4*ranks+suits)))
+
+    def information_state(self, state, player=None):
+        from .card_features import card_features
+        from .betting_features import public_rounds, betting_features
+        player = state.current_player() if player is None else int(player)
+        if player not in (0,1) or state.is_chance_node() or state.is_terminal():
+            raise ValueError("Encode decision states only")
+        raw = self._raw(state, player)
+        board, count = self._board(state)
+        hole = raw[2:54].reshape(13,4).T
+        strategic = card_features(self._ids(hole), self._ids(sum(board)))
+        context = self._context(state, raw, count)
+        economics = betting_features(public_rounds(state), player, strategic, actor=state.current_player())
+        return np.concatenate((*_canonicalise_suits(hole,*board), strategic,
+                               context[:-3], economics, context[-3:])).astype(np.float32)
+
+    def full_state(self, state):
+        from .card_features import card_features, critic_comparison
+        from .betting_features import public_rounds, betting_features
+        self._validate_state_game(state)
+        if state.is_terminal():
+            return np.zeros(self.full_state_size, dtype=np.float32)
+        player = state.current_player()
+        if player not in (0,1): raise ValueError("Encode decision states only")
+        raw = [self._raw(state,p) for p in (0,1)]
+        holes = [r[2:54].reshape(13,4).T for r in raw]
+        board, count = self._board(state)
+        public = self._ids(sum(board))
+        private = [self._ids(h) for h in holes]
+        # Each perspective must canonicalise independently of the other hand.
+        strategic = [card_features(h,public) for h in private]
+        comparison = critic_comparison(*private, public)
+        rounds = public_rounds(state)
+        economics = [betting_features(rounds,p,strategic[p],actor=player) for p in (0,1)]
+        context = self._context(state,raw[player],count)
+        return np.concatenate((*_canonicalise_suits(*holes,*board), *strategic, comparison,
+                               context[:-3], *economics, context[-3:])).astype(np.float32)
+
+
 def make_feature_encoder(encoder_id=ENCODER_ID):
-    if encoder_id != ENCODER_ID:
-        raise ValueError(f"Unsupported HULHE encoder: {encoder_id}")
-    return HULHEFeatureEncoder()
+    if encoder_id == LEGACY_ENCODER_ID:
+        return LegacyHULHEFeatureEncoder()
+    if encoder_id == ENCODER_ID:
+        return HULHEFeatureEncoder()
+    raise ValueError(f"Unsupported HULHE encoder: {encoder_id}")
 
 
 def encoder_from_metadata(metadata):
@@ -151,7 +228,10 @@ def encoder_from_metadata(metadata):
 
 
 class StructuredHULHEMLP(nn.Module):
-    """Small CPU-friendly two-branch MLP for cards and betting context."""
+    """Separate exact-card, strategic-card and betting-context branches.
+
+    Legacy layouts retain their original two-branch model for evaluation.
+    """
 
     checkpoint_model_type = "structured_hulhe_mlp_v1"
 
@@ -167,6 +247,8 @@ class StructuredHULHEMLP(nn.Module):
         hidden_layers = [int(width) for width in hidden_layers]
         if not hidden_layers or int(branch_width) <= 0:
             raise ValueError("Structured HULHE MLP requires positive hidden widths")
+        self.checkpoint_model_type = ("structured_hulhe_mlp_v2" if layout.strategic_size
+                                      else "structured_hulhe_mlp_v1")
         self.layout = layout
         self.input_size = int(layout.total_size)
         self.output_size = int(output_size)
@@ -178,7 +260,9 @@ class StructuredHULHEMLP(nn.Module):
         self.context_encoder = SonnetLinear(
             layout.context_size, self.branch_width, activation=True
         )
-        widths = [2 * self.branch_width, *hidden_layers]
+        if layout.strategic_size:
+            self.strategic_encoder = SonnetLinear(layout.strategic_size, self.branch_width, activation=True)
+        widths = [(3 if layout.strategic_size else 2) * self.branch_width, *hidden_layers]
         self.trunk = nn.Sequential(
             *[
                 SonnetLinear(input_width, output_width, activation=True)
@@ -190,6 +274,8 @@ class StructuredHULHEMLP(nn.Module):
     def reset_parameters(self) -> None:
         self.card_encoder.reset_parameters()
         self.context_encoder.reset_parameters()
+        if self.layout.strategic_size:
+            self.strategic_encoder.reset_parameters()
         for layer in self.trunk:
             layer.reset_parameters()
         self.output.reset_parameters()
@@ -205,8 +291,10 @@ class StructuredHULHEMLP(nn.Module):
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         cards = inputs[..., : self.layout.card_size]
-        context = inputs[..., self.layout.card_size :]
-        joined = torch.cat(
-            [self.card_encoder(cards), self.context_encoder(context)], dim=-1
-        )
+        split = self.layout.card_size + self.layout.strategic_size
+        context = inputs[..., split:]
+        branches = [self.card_encoder(cards), self.context_encoder(context)]
+        if self.layout.strategic_size:
+            branches.append(self.strategic_encoder(inputs[..., self.layout.card_size:split]))
+        joined = torch.cat(branches, dim=-1)
         return self.output(self.trunk(joined))

@@ -128,12 +128,13 @@ class LoadedHULHEPolicy(policy.Policy):
                 [int(value) for value in self.checkpoint["policy_network_layers"]],
                 int(self.checkpoint["num_actions"]),
             )
-        elif model_metadata.get("type") == "structured_hulhe_mlp_v1":
+        elif model_metadata.get("type") in ("structured_hulhe_mlp_v1", "structured_hulhe_mlp_v2"):
             layout_metadata = model_metadata["layout"]
             layout = FeatureLayout(
                 name=str(layout_metadata["name"]),
                 total_size=int(layout_metadata["total_size"]),
                 card_size=int(layout_metadata["card_size"]),
+                strategic_size=int(layout_metadata.get("strategic_size", 0)),
             )
             if self.feature_encoder is None:
                 raise ValueError("Structured HULHE checkpoint has no feature encoder")
