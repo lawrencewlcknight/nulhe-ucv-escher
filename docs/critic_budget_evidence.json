@@ -1,0 +1,69 @@
+{
+  "interval": "98.333% paired t; exploratory with three seeds; no equivalence claim",
+  "noninferiority_margin": 0.005,
+  "primary_exact_average": {
+    "B_minus_A": {
+      "ci_high": 0.00427235493518052,
+      "ci_low": -0.0009610411902062209,
+      "mean": 0.0016556568724871493,
+      "n": 3,
+      "se": 0.00034210552184796544,
+      "upper_interval_below_loss_margin": true
+    },
+    "C_minus_A": {
+      "ci_high": 0.01432251314620452,
+      "ci_low": -0.012794335007018653,
+      "mean": 0.0007640890695929324,
+      "n": 3,
+      "se": 0.0017726201621408712,
+      "upper_interval_below_loss_margin": false
+    },
+    "D_minus_A": {
+      "ci_high": 0.08459246643156182,
+      "ci_low": 0.01930885055293783,
+      "mean": 0.05195065849224983,
+      "n": 3,
+      "se": 0.004267570224607896,
+      "upper_interval_below_loss_margin": false
+    }
+  },
+  "runs": 12,
+  "scope": "native adaptive proposal/calibration; fixed iterations and trajectories",
+  "secondary_deployed_policy": {
+    "B_minus_A": {
+      "ci_high": 0.02156859011809105,
+      "ci_low": -0.018096837448163747,
+      "mean": 0.0017358763349636513,
+      "n": 3,
+      "se": 0.0025929170029859883
+    },
+    "C_minus_A": {
+      "ci_high": 0.03046784258502636,
+      "ci_low": -0.026315692743790076,
+      "mean": 0.0020760749206181414,
+      "n": 3,
+      "se": 0.0037119225299616656
+    },
+    "D_minus_A": {
+      "ci_high": 0.0920336566617398,
+      "ci_low": 0.016137186123111665,
+      "mean": 0.054085421392425725,
+      "n": 3,
+      "se": 0.004961329323817879
+    }
+  },
+  "seeds": [
+    36707599,
+    41452265,
+    602067218
+  ],
+  "smoke": false,
+  "status": "complete",
+  "timing": "component timers overlap; learning_seconds includes policy fitting and exact-average accumulation",
+  "zero_arm": "component removal, not a frozen random critic",
+  "provenance": {
+    "run_id": "exp51-budget-20261101-220804",
+    "source_file": "analysis/summary.json",
+    "source_sha256": "17df306907de79f89925deae934f20298740cf97fe02117ffb040bd07061aa4a"
+  }
+}

@@ -1,0 +1,6 @@
+numpy==1.26.4
+open_spiel==1.6.3
+scipy==1.13.1
+torch==2.7.0
+ray==2.51.2
+psutil==7.2.1
