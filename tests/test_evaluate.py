@@ -67,6 +67,30 @@ def test_probability_validation_fails_instead_of_substituting_an_action():
         with pytest.raises(ValueError): validate_probabilities(probabilities, legal)
 
 
+def test_free_fold_adaptation_accepts_decimal_rounding(monkeypatch):
+    from hulhe_escher.fell_omen2 import FellOmen2Policy
+
+    state = decision(1)
+    policy = FellOmen2Policy.__new__(FellOmen2Policy)
+    policy.game = state.get_game()
+    policy.free_fold = 'check'
+    # Exact upstream vector that stopped the cloud benchmark after folding
+    # its tiny free-fold mass into an already rounded check probability.
+    raw = [1.02043e-15, 1.0, 2.80817e-11]
+    response = {'probabilities': raw.copy()}
+    monkeypatch.setattr(policy, 'request', lambda observation: response)
+    probabilities = policy.action_probabilities(state)
+    assert set(probabilities) == {1, 2}
+    assert sum(probabilities.values()) == pytest.approx(1, abs=1e-15)
+    assert probabilities[2] > 0
+    assert probabilities[2] == pytest.approx(raw[2] / sum(raw), rel=1e-14, abs=0)
+    assert response['probabilities'] == raw
+    assert response['legalization'] == 'explicit_free_fold_to_check'
+    for invalid in ([0, 1.000003, 0], [0, 1.0000015, .0000015], [-1e-15, 1, 0]):
+        with pytest.raises(ValueError):
+            validate_probabilities(invalid, [1, 2])
+
+
 def test_duplicate_matches_repeat_without_touching_global_rng(tmp_path):
     np.random.seed(99)
     before = deepcopy(np.random.get_state())

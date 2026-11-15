@@ -70,7 +70,10 @@ def observation_request(state):
 def validate_probabilities(values, legal, *, tolerance=2e-6):
     """Only documented decimal rounding may be corrected; never replace strategy."""
     p = np.asarray(values, dtype=np.float64)
-    if p.shape != (3,) or not np.isfinite(p).all() or np.any(p < 0) or np.any(p > 1):
+    # Moving free-fold mass into check can put a rounded table entry just
+    # above one. Apply the same decimal tolerance as the total-mass check;
+    # normalization below preserves the relative legal-action probabilities.
+    if p.shape != (3,) or not np.isfinite(p).all() or np.any(p < 0) or np.any(p > 1 + tolerance):
         raise ValueError('Invalid FO2 probability vector')
     legal = list(legal)
     if not legal or any(a not in (0, 1, 2) for a in legal):
