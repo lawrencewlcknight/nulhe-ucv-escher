@@ -1,5 +1,23 @@
 # Verification
 
+## Training continuation across process exits — 2026-11-15
+
+* Focused checkpoint, recovery and resume suite: **19 passed, 1 skipped**.
+  Skips are the existing opt-in Ray tests, previously verified separately.
+* A new regression test launches separate Python CLI processes: one trains for
+  three iterations continuously; another trains for two, exits, reloads its
+  saved recovery, and trains the third iteration. Both use full production
+  network dimensions with reduced smoke replay and update budgets.
+* The resulting online/target networks, Adam states, persistent replay, critic
+  target history, gate state, RNG states and training counters match exactly.
+  Target versions advance after reload, demonstrating further training rather
+  than inference-only loading. Latest-only retention also remains effective.
+* Existing tests cover recovery-only and policy-bearing checkpoints, save
+  failures, schedule restoration and rejection of incompatible continuation.
+* Resume usage and required run-directory files are documented in the README.
+  No changes to learner or checkpoint implementation were necessary.
+
+
 ## Six-hour wall-clock recovery — 2026-11-15
 
 * Final focused scheduler, retention and cross-variant checks: **16 passed**.
@@ -229,3 +247,37 @@ substitutions; setup and training are not part of the timed match loop.
   respectively. Both used strict rejection and made 94 opponent decisions.
 * Verified that the wheel includes the Java bridge sources and pinned asset
   manifest, without bundling upstream binaries or strategy archives.
+
+## Replay retention and indexed grouping v0.9.0 — 2026-11-15
+
+`tests/test_replay_grouping.py` compares the grouped targets, masks and objective
+weights exactly with the former dense NumPy reference across chunk sizes and
+reservoir overflow. It exercises forced fingerprint collisions, signed zero,
+invalid rows, inconsistent masks, legacy float64 storage, lazy minibatch gradients,
+validation losses, replay mutation and untouched RNG state. Production grouping
+retains a view of the original float32 feature matrix.
+
+`tests/test_replay_integration.py` checks the new default capacity, all four real
+encoder street labels for both players, saturated occupancy metrics, allocated
+bytes, and a complete smoke collection/policy fit. Cross-variant tests permit the
+intentional policy-capacity difference and require identical grouping code.
+
+Bounded memory checks use `tools/check_policy_replay_memory.py`; add `--reference`
+in a separate process to measure the former implementation. Measured 100,000-row
+HUNL incremental peaks were 18.5 MB indexed versus 373.0 MB dense; 250,000-row
+checks completed too. See [raw measurements](docs/REPLAY_MEMORY_CHECK.json).
+The host has 8 GiB RAM, so no full-capacity multi-worker training-memory claim is
+made. Synthetic timing and memory results do not establish policy strength.
+
+## Learning-experiment integration
+
+`python -m pytest -q tests/test_learning_experiment.py` tests two real training
+processes, recovery, playable P4/P8 exports, deterministic multi-process duplicate
+deals, paired statistical planning, incomplete/smoke claim suppression, a small
+memory-probe round trip and a source-only bounded cloud plan.
+
+`RUN_FO2_TESTS=1 python -m pytest -q tests/test_learning_experiment.py -m fo2`
+additionally runs the pinned local Java opponent against both smoke policies.
+It needs the assets prepared with `python -m hulhe_escher.fo2_setup`. No cloud
+resources or remote poker games are created by these tests. Full-capacity memory
+profiling and an eight-active-hour production run require a suitable VM.

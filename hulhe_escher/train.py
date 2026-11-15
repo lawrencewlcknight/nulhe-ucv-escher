@@ -9,6 +9,8 @@ import time
 
 import numpy as np
 import torch
+
+from unbiased_escher.replay_grouping import reservoir_counts, learner_replay_allocation
 from importlib.metadata import version
 
 from .config import baseline_config, smoke_config, make_solver
@@ -47,7 +49,12 @@ def learner_metrics(solver, iteration_seconds):
     fit_seconds = sum(fit["seconds"] for fit in fits)
     return {"regret_fits": regret, "critic_fits": critics, "calibration_fit": calibration,
             "collection_and_overhead_seconds": max(0.0, iteration_seconds - fit_seconds),
-            "policy_replay_rows": len(solver.ave_policy_trainer.buffer),
+            "regret_rows_by_player_street": np.sum([
+                fit["replay"]["retained_by_player_street"] for fit in regret], axis=0).tolist(),
+            "policy_replay_rows": min(solver.ave_policy_trainer.buffer.cur_id,
+                                      solver.ave_policy_trainer.buffer.buffer_size),
+            "policy_replay": reservoir_counts(solver.ave_policy_trainer.buffer),
+            "allocated_learner_replay_bytes": learner_replay_allocation(solver),
             "minimum_sample_probability": solver._minimum_sample_probability}
 
 
@@ -60,6 +67,8 @@ def main(argv=None):
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--additional-training-seconds", type=float,
+                        help="Stop and export after this many MORE active seconds, at an iteration boundary")
     parser.add_argument("--config", type=Path)
     parser.add_argument("--policy-every", type=int, default=None,
                         help="Iterations between policy extractions (smoke: 1; otherwise: disabled); also fit at final endpoint")
@@ -75,6 +84,9 @@ def main(argv=None):
         parser.error("iterations, workers and threads must be positive")
     if args.config and args.smoke:
         parser.error("Choose either a custom config or smoke")
+    if args.additional_training_seconds is not None and (
+            not math.isfinite(args.additional_training_seconds) or args.additional_training_seconds <= 0):
+        parser.error("additional-training-seconds must be finite and positive")
     policy_every = args.policy_every if args.policy_every is not None else (1 if args.smoke else 0)
     if policy_every < 0 or args.checkpoint_every < 0:
         parser.error("policy-every and checkpoint-every must be nonnegative")
@@ -114,6 +126,8 @@ def main(argv=None):
             payload = read_training_state(root / pointer["state"])
             restore_training_state(solver, payload, **kwargs)
             schedule = CheckpointSchedule(**pointer.get("checkpoint_schedule", payload["checkpoint_schedule"]))
+            del payload  # Do not retain restored replay mappings throughout training.
+        stage_started_active = solver._training_elapsed_seconds()
         while solver.num_iteration < args.iterations:
             started = time.perf_counter()
             solver.iteration()
@@ -121,9 +135,11 @@ def main(argv=None):
             solver._resume_training_elapsed_seconds += learner_seconds
             iteration = solver.num_iteration
             active_seconds = solver._training_elapsed_seconds()
+            budget_reached = (args.additional_training_seconds is not None and
+                              active_seconds - stage_started_active >= args.additional_training_seconds)
             previous_recovery_check = schedule.last_recovery_check_wall_seconds
             recovery, policy_fit = schedule.due(
-                iteration=iteration, final=iteration == args.iterations,
+                iteration=iteration, final=iteration == args.iterations or budget_reached,
                 active_seconds=active_seconds, wall_seconds=time.time(),
                 policy_every=policy_every, checkpoint_every=args.checkpoint_every,
                 recovery_seconds=args.recovery_seconds, policy_seconds=args.policy_seconds)
@@ -143,6 +159,7 @@ def main(argv=None):
                    "policy_fitted": policy_fit, "recovery_saved": recovery,
                    "policy_loss": solver._last_average_policy_loss if policy_fit else None,
                    "policy_validation": getattr(solver.ave_policy_trainer, "last_fit_diagnostics", {}) if policy_fit else None,
+                   "policy_replay_coverage": getattr(solver.ave_policy_trainer, "last_replay_diagnostics", {}) if policy_fit else None,
                    "regret_cache": [getattr(t, "last_target_cache_stats", {}) for t in solver.regret_trainers],
                    "critic_target_versions": [m.target_version for m in solver.q_value_trainer.members],
                    "critic_updates_per_member": [m.last_fit_stats["updates"] for m in solver.q_value_trainer.members],
@@ -179,6 +196,8 @@ def main(argv=None):
             row["iteration_wall_seconds"] = time.perf_counter() - started
             write_json(root / f"metrics_{iteration:06d}.json", row)
             print(json.dumps(row), flush=True)
+            if budget_reached:
+                break
     finally:
         if hasattr(solver, "close"):
             solver.close()

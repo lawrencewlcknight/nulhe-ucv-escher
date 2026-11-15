@@ -24,7 +24,7 @@ statistics, costs and design choices. The production training specification uses
 750 regret updates per player, replay-scaled 250–2,500 critic updates and
 100–2,000 calibration updates, frozen regret-target caching and gradient norm
 clipping at 10. Regret replay is 250,000 rows per player;
-historical policy replay is two million rows.
+historical policy replay is four million rows.
 Regret and average-policy networks use 96-wide input branches and a 256/256
 hidden trunk; critics use 96 and 192/192; calibration retains 64 and 128/128.
 The six online networks total 914,321 trainable parameters. See the
@@ -54,6 +54,35 @@ and the original licence-status note remain in [UPSTREAM.md](vr_deep_cfr/UPSTREA
 The installed command is `hulhe-train`; `python -m hulhe_escher.train` is equivalent.
 Use a separate virtual environment from the HUNL project because the inherited
 shared package names (`unbiased_escher`, `adaptive_escher`, `vr_deep_cfr`) overlap.
+
+## Continue training from a checkpoint
+
+Full recovery checkpoints support continued training. Re-run the original
+training command with the same output directory and options, add `--resume`, and
+set `--iterations` to the desired **total** iteration count. For example, after
+training the eight-worker baseline to iteration 100:
+
+```bash
+python -m hulhe_escher.train --iterations 200 --workers 8 --threads 8 \
+  --policy-seconds 21600 --recovery-seconds 21600 \
+  --seed 0 --output outputs/baseline-seed0 --resume
+```
+
+The runner automatically loads the recovery directory referenced by `latest.json`
+and continues at the next iteration. It restores all online/target networks,
+Adam states, persistent replay, critic target history, counters, random-number
+states (including workers), and recovery/policy scheduling. Fresh regret batches
+and temporary caches are rebuilt as they are during uninterrupted training.
+
+Keep the whole run directory: `manifest.json`, `latest.json`, and the latest
+`state_*` directory with all its shards. Shards are verified before loading.
+Use the same source, configuration, Python/dependency versions, seed, worker
+count, thread count and scheduling options. Only the total iteration limit may
+change. If the target has already been reached, resume performs no further work.
+
+`policy_*.pkl` files are inference exports; they do not contain the replay and
+optimizer state required for full training continuation. Every policy export
+also produces a full recovery snapshot, subject to latest-only recovery retention.
 
 ## Verify and run
 
@@ -114,7 +143,7 @@ regrets when all legal regrets are non-positive; unequal negative regrets still
 select the highest value. Tiny positive regrets are normalized without a floor
 that would reduce total probability. Terminal masks produce zero continuation.
 
-The historical policy reservoir holds two million rows. Policy fitting resets
+The historical policy reservoir holds four million rows. Policy fitting resets
 the model, runs all 20,000 updates, and selects the best iteration-weighted
 held-out cross-entropy at 2,500/5,000/10,000/20,000 updates. A stable, game-neutral
 hash holds out 5% of canonical feature groups; identical features cannot appear
@@ -175,3 +204,10 @@ python -m hulhe_escher.evaluate --checkpoint outputs/smoke/policy_000003.pkl \
 This runs 40 hands with paired deals and exchanged seats. The default rejects
 incompatible opponent actions and logs failures; it does not silently alter
 the strategy. See [FELL_OMEN2.md](docs/FELL_OMEN2.md) before longer benchmarks.
+
+## Four-plus-four-hour learning experiment
+
+See [the learning experiment protocol](docs/LEARNING_EXPERIMENT.md) for P4/P8
+training and restart, statistically planned head-to-head and Fell Omen 2
+comparisons, memory/throughput preflight and the reviewable Google Cloud launcher.
+The launcher prepares files by default; only `--execute` creates paid VMs.

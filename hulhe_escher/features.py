@@ -61,6 +61,12 @@ class LegacyHULHEFeatureEncoder:
         self.policy_layout = FeatureLayout("player_information_state", 208 + context_size, 208)
         self.full_state_layout = FeatureLayout("critic_full_state", 260 + context_size, 260)
 
+    def replay_context_columns(self):
+        """Player and street one-hot columns for passive replay diagnostics."""
+        context = self.policy_layout.card_size + self.policy_layout.strategic_size
+        street = context + 2 + 2 * self.history_slots
+        return slice(context, context + 2), slice(street, street + 4)
+
     @property
     def policy_size(self):
         return self.policy_layout.total_size

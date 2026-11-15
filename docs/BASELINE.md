@@ -1,5 +1,14 @@
 # Inherited UCV-ESCHER baseline
 
+## Replay capacity revision v0.9.0
+
+Historical policy replay is 4,000,000 rows, shared across players. Regret, critic,
+calibration and fitting budgets are unchanged. Exact indexed grouping avoids a
+full duplicate feature matrix, and coverage diagnostics distinguish retained
+rows from lifetime arrivals. See [the shared specification](TRAINING_ALIGNMENT.md)
+for memory costs, validation and checkpoint compatibility. These changes improve
+retention capacity; they do not establish world-leading playing strength.
+
 This document describes the current HULHE specification and its inherited evidence.
 The project uses the [fixed-limit interface](GAME_INTERFACE.md). The HUNL-specific
 section below is historical and does not describe the current game.
@@ -140,7 +149,7 @@ it beneficial.
 | Collection | 10,000 trajectories per player per iteration, 20,000 total; alternating player updates |
 | Networks | Three branches per network; regret/policy 96-wide branches and 2×256 trunk; critics 96-wide branches and 2×192 trunk; calibration 64-wide branches and 2×128 trunk |
 | Regret replay | Capacity 250,000 per player, reset for each player collection batch |
-| Policy replay | 2,000,000-row historical reservoir |
+| Policy replay | 4,000,000-row historical reservoir |
 | Critic replay | 1,000,000 transitions total, divided into two 500,000-row circular buffers |
 | Calibration replay | 1,000,000 rows |
 | Storage | Dense compact float32 replay, integer bookkeeping; no inherited FHP-only feature codebook |
