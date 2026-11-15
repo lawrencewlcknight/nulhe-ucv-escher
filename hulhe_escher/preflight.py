@@ -30,7 +30,7 @@ def profile_case(workers, threads, output):
             rows.append(dict(seconds=elapsed, **learner_metrics(solver, elapsed)))
         started = time.monotonic()
         solver.train_average_policy()
-        result = dict(memory_probe=memory, workers=workers, threads=threads, iterations=rows,
+        result = dict(workers=workers, threads=threads, iterations=rows,
                       policy_500_updates_seconds=time.monotonic()-started,
                       config=config, full_capacity_certified=False)
         write_json(output, result)

@@ -10,6 +10,38 @@ from hulhe_escher.checkpointing import load_checkpoint_payload
 from hulhe_escher.evaluation_stats import estimate, sample_plan
 
 
+def test_preflight_case_writes_result_and_closes_solver(tmp_path, monkeypatch):
+    from hulhe_escher import config, preflight, train
+
+    class Solver:
+        iterations = 0
+        fitted = False
+        closed = False
+
+        def iteration(self):
+            self.iterations += 1
+
+        def train_average_policy(self):
+            self.fitted = True
+
+        def close(self):
+            self.closed = True
+
+    solver = Solver()
+    monkeypatch.setattr(config, "make_solver", lambda *args, **kwargs: solver)
+    monkeypatch.setattr(train, "learner_metrics", lambda *args: {})
+    monkeypatch.setattr("torch.set_num_threads", lambda threads: None)
+    path = tmp_path / "case.json"
+    preflight.profile_case(8, 4, path)
+    result = json.loads(path.read_text())
+    assert result["workers"] == 8 and result["threads"] == 4
+    assert len(result["iterations"]) == solver.iterations == 3
+    assert solver.fitted and solver.closed
+    assert result["full_capacity_certified"] is False
+    # The full-memory probe belongs to the orchestrator, not each case process.
+    assert "memory_probe" not in result
+
+
 def test_statistical_units_power_and_incomplete_claims():
     pilot = [-20., 20.]*5000
     plan = sample_plan(pilot, minimum=100000, maximum=1000000)
