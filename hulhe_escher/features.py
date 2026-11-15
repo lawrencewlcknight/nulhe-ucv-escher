@@ -5,6 +5,7 @@ both players' hole cards. Flop, turn and river occupy separate channels; merging
 all five public cards would discard information about earlier decisions.
 """
 from dataclasses import dataclass
+from weakref import WeakKeyDictionary
 
 import numpy as np
 import torch
@@ -38,9 +39,11 @@ class FeatureLayout:
 
 
 def _canonicalise_suits(*channels):
-    signatures = [tuple(float(x) for channel in channels for x in channel[suit])
-                  for suit in range(4)]
-    order = sorted(range(4), key=lambda suit: signatures[suit], reverse=True)
+    # Channels are binary card indicators. Big-endian packed bits have the
+    # same lexicographic ordering as the old float tuples, including suit ties.
+    signatures = np.packbits(np.concatenate(channels, axis=1).astype(bool),
+                             axis=1, bitorder="big")
+    order = sorted(range(4), key=lambda suit: signatures[suit].tobytes(), reverse=True)
     return tuple(channel[order].reshape(-1) for channel in channels)
 
 
@@ -50,6 +53,7 @@ class LegacyHULHEFeatureEncoder:
     def __init__(self):
         game = load_hulhe_game()
         self._validated_game = game
+        self._state_feature_cache = WeakKeyDictionary()
         self.raw_size = game.information_state_tensor_size()
         self.history_slots = game.max_game_length()
         if (self.history_slots != 34 or self.raw_size != 208
@@ -60,6 +64,38 @@ class LegacyHULHEFeatureEncoder:
         context_size = 2 + 2 * self.history_slots + 4 + NUM_ACTIONS
         self.policy_layout = FeatureLayout("player_information_state", 208 + context_size, 208)
         self.full_state_layout = FeatureLayout("critic_full_state", 260 + context_size, 260)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Weak references are process-local; workers/copies start with no cache.
+        state.pop("_state_feature_cache", None)
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._state_feature_cache = WeakKeyDictionary()
+
+    def _cached_state_features(self, state, key, build):
+        # Native pyspiel.State cannot hold custom attributes. Weak keys release
+        # completed traversal states; each encoder instance owns its own cache.
+        # Full history also detects equal-depth branches if undo becomes supported.
+        token = tuple(state.history())
+        entry = self._state_feature_cache.get(state)
+        if entry is None or entry[0] != token:
+            entry = (token, {})
+            self._state_feature_cache[state] = entry
+        if key not in entry[1]:
+            entry[1][key] = build()
+        return entry[1][key].copy()  # Callers retain ownership of their arrays.
+
+    def information_state(self, state, player=None):
+        player = state.current_player() if player is None else int(player)
+        return self._cached_state_features(state, ("info", player),
+            lambda: self._encode_information_state(state, player))
+
+    def full_state(self, state):
+        return self._cached_state_features(state, ("full", None),
+            lambda: self._encode_full_state(state))
 
     def replay_context_columns(self):
         """Player and street one-hot columns for passive replay diagnostics."""
@@ -122,7 +158,7 @@ class LegacyHULHEFeatureEncoder:
         betting = raw[106:106 + 2 * self.history_slots]
         return np.concatenate((raw[:2], betting, street, mask))
 
-    def information_state(self, state, player=None):
+    def _encode_information_state(self, state, player=None):
         player = state.current_player() if player is None else int(player)
         if player not in (0, 1) or state.is_chance_node() or state.is_terminal():
             raise ValueError("Encode decision states only")
@@ -132,7 +168,7 @@ class LegacyHULHEFeatureEncoder:
         return np.concatenate((*_canonicalise_suits(hole, *board),
                                self._context(state, raw, count))).astype(np.float32)
 
-    def full_state(self, state):
+    def _encode_full_state(self, state):
         self._validate_state_game(state)
         if state.is_terminal():
             # Terminal replay rows carry the payoff and done mask; TD never
@@ -182,7 +218,7 @@ class StrategicV3HULHEFeatureEncoder(LegacyHULHEFeatureEncoder):
         suits, ranks = np.nonzero(channel)
         return tuple(sorted(map(int, 4*ranks+suits)))
 
-    def information_state(self, state, player=None):
+    def _encode_information_state(self, state, player=None):
         card_features = self.card_module.card_features
         from .betting_features import public_rounds, betting_features
         player = state.current_player() if player is None else int(player)
@@ -197,7 +233,7 @@ class StrategicV3HULHEFeatureEncoder(LegacyHULHEFeatureEncoder):
         return np.concatenate((*_canonicalise_suits(hole,*board), strategic,
                                context[:-3], economics, context[-3:])).astype(np.float32)
 
-    def full_state(self, state):
+    def _encode_full_state(self, state):
         card_features, critic_comparison = self.card_module.card_features, self.card_module.critic_comparison
         from .betting_features import public_rounds, betting_features
         self._validate_state_game(state)

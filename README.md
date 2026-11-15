@@ -32,6 +32,20 @@ The six online networks total 914,321 trainable parameters. See the
 See [the game-interface specification](docs/GAME_INTERFACE.md) for evidence,
 seat conventions and the complete feature layout.
 
+Training reuses encoded features for each unchanged native OpenSpiel state,
+separately for each encoder and observing player. Weak references release completed
+states; a full-history token invalidates entries after mutation. Returned arrays
+remain independently mutable, and serialization omits the temporary cache.
+Binary suit ordering uses packed bits, inference uses explicit tensor devices,
+and frozen targets use contiguous replay views while preserving tail padding.
+Both Hold'em variants replace repeated rank sorting with an exact, read-only
+8,192-mask lookup (832 KiB per process). Features, model dimensions and training
+configuration are unchanged. `tests/test_training_efficiency.py` checks all rank
+masks, cache behavior, and exact replay/RNG/model/Adam equivalence over repeated
+fits, including production minibatches. Existing source-fingerprint checks for
+training continuation still apply. Worker pipelining and persistent replay-hash
+caches remain deferred until VM profiling supports them.
+
 **Status:** fixed-limit self-play, checkpoint/resume and local Fell Omen 2
 matches are implemented. See [the opponent interface](docs/FELL_OMEN2.md) for
 setup, lightweight tests and the known upstream free-fold incompatibility.

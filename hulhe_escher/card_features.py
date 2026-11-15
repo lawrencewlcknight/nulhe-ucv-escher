@@ -56,6 +56,17 @@ for _m in range(8192):
 _WINDOWS = tuple(tuple(range(s, s + 5)) for s in range(9)) + ((12, 0, 1, 2, 3),)
 
 
+# Every possible set of the 13 ranks, descending with zero padding. Keep the
+# original integer dtype and return owned rows: rank_cards mutates its kickers.
+_TOP_RANKS = np.sort(np.where(
+    (np.arange(8192)[:, None] & _BITS) != 0, _RANKS, 0), axis=1)[:, ::-1].copy()
+_TOP_RANKS.flags.writeable = False
+
+
+def _top_ranks(mask, k=5):
+    return _TOP_RANKS[(mask * _BITS).sum(axis=1), :k]
+
+
 def rank_cards(cards):
     """Vectorized exact best-five ranks for N x {5,6,7} cards (larger wins).
 
@@ -71,8 +82,7 @@ def rank_cards(cards):
     rows = np.arange(len(cards))
     for col in range(cards.shape[1]):
         counts[rows, ranks[:, col]] += 1
-    def top(mask, k):
-        return np.sort(np.where(mask, _RANKS, 0), axis=1)[:, ::-1][:, :k]
+    top = _top_ranks
     tie = top(counts > 0, 5).copy()
     category = np.zeros(len(cards), dtype=np.int8)
     pair = top(counts >= 2, 2)
