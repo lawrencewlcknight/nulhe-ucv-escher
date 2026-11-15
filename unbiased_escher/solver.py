@@ -125,10 +125,8 @@ class CrossFittedQMember(PersistentFrozenTargetQValueTrainer):
         for player in range(2):
             trainer = self.regret_trainers[player]
             raw_regrets = trainer.predict(
-                    trainer.model,
-                    next_states,
-                    next_legal_actions_mask,
-                )
+                trainer.model, next_states, next_legal_actions_mask
+            )
             cumulative = torch.clamp(raw_regrets, min=0.0)
             if getattr(trainer, "predictor_enabled", False):
                 immediate = trainer.predict(
@@ -146,29 +144,9 @@ class CrossFittedQMember(PersistentFrozenTargetQValueTrainer):
                     + trainer.prediction_gate * optimistic
                 )
             else:
-                scores = cumulative
-            scores *= next_legal_actions_mask
-            positive_sum = scores.sum(dim=1, keepdim=True)
-            normalised = scores / torch.clamp(positive_sum, min=1e-12)
-            masked = torch.where(
-                next_legal_actions_mask == 1,
-                scores,
-                torch.full_like(scores, float("-inf")),
-            )
-            fallback = F.one_hot(
-                torch.argmax(masked, dim=1),
-                self.output_size,
-            ).to(scores.dtype)
-            if getattr(trainer, "uniform_regret_ties", False) and not getattr(trainer, "predictor_enabled", False):
-                legal = next_legal_actions_mask == 1
-                if trainer.use_regret_matching_argmax:
-                    raw_masked = raw_regrets.masked_fill(~legal, float("-inf"))
-                    tied = legal & (raw_masked == raw_masked.max(dim=1, keepdim=True).values)
-                else:
-                    tied = legal
-                fallback = tied.to(scores.dtype) / tied.sum(dim=1, keepdim=True).clamp_min(1)
+                scores = raw_regrets
             player_strategies.append(
-                torch.where(positive_sum > 0.0, normalised, fallback)
+                trainer.batched_regret_matching(scores, next_legal_actions_mask)
             )
         return torch.where(
             next_players.unsqueeze(1) == 0,

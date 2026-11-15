@@ -3,7 +3,7 @@
 A research repository for Unbiased Control-Variate ESCHER in **heads-up
 fixed-limit Texas Hold'em (HULHE)**, with **Fell Omen 2** as the selected challenge
 opponent. The learner comes from FHP Experiment 36/38 through the HUNL baseline,
-with **2,500 updates per critic per fit**. See [the baseline evidence](docs/BASELINE.md).
+with **up to 2,500 updates per critic per fit**. See [the baseline evidence](docs/BASELINE.md).
 
 The game interface uses **OpenSpiel 1.6.3 `universal_poker`**:
 
@@ -21,8 +21,9 @@ potential, board texture, pot odds and betting interactions. Three network
 branches process exact cards, strategic card descriptors and betting context.
 See [the representation review](docs/STRATEGIC_FEATURES.md) for exact versus sampled
 statistics, costs and design choices. The production training specification uses
-1,000 regret updates per player and retains the 2,500-update critics and
-2,000-update calibration learner. Regret replay is 250,000 rows per player;
+750 regret updates per player, replay-scaled 250–2,500 critic updates and
+100–2,000 calibration updates, frozen regret-target caching and gradient norm
+clipping at 10. Regret replay is 250,000 rows per player;
 historical policy replay is two million rows.
 Regret and average-policy networks use 96-wide input branches and a 256/256
 hidden trunk; critics use 96 and 192/192; calibration retains 64 and 128/128.
@@ -73,7 +74,7 @@ An explicit training invocation using the original eight-worker arrangement is:
 
 ```bash
 python -m hulhe_escher.train --iterations 100 --workers 8 --threads 8 \
-  --recovery-seconds 3600 --policy-seconds 21600 --seed 0 --output outputs/baseline-seed0
+  --recovery-seconds 21600 --policy-seconds 21600 --seed 0 --output outputs/baseline-seed0
 ```
 
 This is a substantial workload: 10,000 trajectories **per player per iteration**,
@@ -81,17 +82,48 @@ large replay buffers, and up to 20,000 policy updates per fit. Benchmark memory
 and throughput on the intended training machine before choosing a long run.
 The command uses the current machine and does not submit any cloud jobs.
 
-Recovery saves occur every hour of active learner time, and playable policies
-are fitted every six hours. Both are written at the requested final iteration.
-Policy validation uses a stable 5% information-set holdout, checks updates
-2,500/5,000/10,000/20,000 and retains the best model and matching optimizer.
-It follows one fitting trajectory, not separate training experiments. All 20,000
-updates execute; selection can retain an earlier checkpoint. Tiny smoke replays
-without both split partitions fit all groups and report validation unavailable.
-The optional `--checkpoint-every N` also triggers both operations every N
-iterations; smoke defaults to every iteration. Policy fitting, persistence and
-downtime do not advance the active learner clock, and boundaries can overshoot
-by one outer iteration. The two schedule clocks are restored on resume.
+Automatic recovery checks run every **21,600 wall-clock seconds (six hours)**,
+on a fixed grid from run start. A check skips saving if a successful recovery
+checkpoint was completed less than **3,600 seconds (one hour)** ago. This includes
+recovery snapshots saved alongside policy fits. At exactly one hour, saving is
+eligible again. A skipped check advances to the next six-hour slot; it does not
+retry when the one-hour window expires. For example, a save at 5.5 hours suppresses
+the six-hour check, with the next check at 12 hours.
+
+Checks run after completed iterations, so long iterations can delay them.
+Downtime counts as wall time; missed slots cause at most one check on resumption.
+The grid, last successful save time and skipped checks survive restart. A skipped
+check updates only the small latest-pointer metadata, without rewriting replay.
+Policy fitting remains every **21,600 active learner seconds**, excluding policy
+fitting, persistence and downtime. Policy-triggered, explicit iteration and final
+saves remain unconditional.
+
+`--checkpoint-every N` adds recovery-only saves every N iterations (default 0).
+`--policy-every N` adds policy fits every N iterations (production default 0;
+smoke default 1). Set `--policy-every 0` for time-only policy scheduling in smoke.
+`--recovery-seconds 0` disables timed recovery; `--checkpoint-seconds` is an alias
+for `--recovery-seconds`. Policy fits also save full recovery state, including the
+selected policy and matching optimizer. The final requested iteration always
+fits a policy and saves recovery state. Both schedule clocks survive resume;
+recovery-only saves never fit a policy. No background timer interrupts learning.
+
+Both variants cache frozen regret targets once per fit, clip regret gradient
+norms at 10, and skip empty regret batches without modifying learner state.
+Collection and critic bootstrapping use uniform probabilities among tied maximum
+regrets when all legal regrets are non-positive; unequal negative regrets still
+select the highest value. Tiny positive regrets are normalized without a floor
+that would reduce total probability. Terminal masks produce zero continuation.
+
+The historical policy reservoir holds two million rows. Policy fitting resets
+the model, runs all 20,000 updates, and selects the best iteration-weighted
+held-out cross-entropy at 2,500/5,000/10,000/20,000 updates. A stable, game-neutral
+hash holds out 5% of canonical feature groups; identical features cannot appear
+in both partitions. The selected model and matching Adam state are restored.
+Tiny replays without both partitions use all groups and report validation
+unavailable. This selection is within one fit, not extra self-play experiments;
+held-out policy error is not exploitability.
+
+See the [shared training specification](docs/TRAINING_ALIGNMENT.md).
 
 Checksummed, sharded continuation states contain networks, optimisers, replay,
 temporal critic history and RNGs, including actor RNGs. Recovery saves do not
@@ -99,8 +131,12 @@ require a policy fit. Only complete outer iterations are saved. `--resume` check
 the source fingerprint, runtime, seed, configuration and worker arrangement;
 `--iterations` is the desired **total**, not additional iterations. Use trusted
 checkpoint files only; their PyTorch/pickle metadata is not an untrusted format.
-All checkpoint directories are retained; provision disk space for the chosen
-cadence. A retention policy and cloud runner remain future work.
+Only the newest recovery checkpoint is retained. After a new save passes checksum
+verification and `latest.json` is updated, all older recovery checkpoints in that
+run directory are deleted. Failed saves preserve the previous recovery checkpoint.
+Playable `policy_*.pkl` files and metrics are retained separately. Allow room for
+the old and new recovery checkpoints during saving. Cloud orchestration remains
+future work.
 
 ## Layout
 

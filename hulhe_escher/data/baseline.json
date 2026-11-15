@@ -5,7 +5,7 @@
   "baseline_buffer_size": 1000000,
   "learning_rate": 0.001,
   "num_traversals": 10000,
-  "advantage_network_train_steps": 1000,
+  "advantage_network_train_steps": 750,
   "ave_policy_network_train_steps": 5000,
   "baseline_network_train_steps": 2500,
   "advantage_batch_size": 2048,
@@ -56,7 +56,7 @@
   "regret_network_type": "mlp",
   "regret_residual_width": 64,
   "regret_residual_blocks": 4,
-  "regret_policy_gradient_clip_norm": null,
+  "regret_policy_gradient_clip_norm": 10.0,
   "anneal_start_nodes": null,
   "anneal_end_nodes": null,
   "anneal_final_learning_rate": null,
@@ -87,5 +87,7 @@
     5000,
     10000,
     20000
-  ]
+  ],
+  "critic_min_train_steps": 250,
+  "calibration_min_train_steps": 100
 }

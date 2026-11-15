@@ -8,6 +8,7 @@ import random
 import numpy as np
 import torch
 
+from hulhe_escher.optimization import ReplayScaledFitMixin
 from hulhe_escher.features import (
     HULHEFeatureEncoder,
     ENCODER_ID,
@@ -25,6 +26,7 @@ from .grouped_wide_solver import (
     TemporallyAveragedCrossFittedQEnsemble,
     TemporallyAveragedCrossFittedQMember,
 )
+from .holdem_fitting import RegretFitMixin, fit_validated_policy
 from .efficient_replay import CompactCircularBuffer, CompactReservoirBuffer
 from .solver import ResidualCalibrationTrainer, CalibrationBuffer
 class _StructuredModelMixin:
@@ -40,13 +42,14 @@ class _StructuredModelMixin:
         ).to(self.device)
 
 
-class StructuredHULHERegretTrainer(_StructuredModelMixin, VRDCFRPlusRegretTrainer):
+class StructuredHULHERegretTrainer(RegretFitMixin, _StructuredModelMixin, VRDCFRPlusRegretTrainer):
     def __init__(
         self,
         *args,
         feature_encoder: HULHEFeatureEncoder,
         branch_width: int,
         replay_seed: int,
+        gradient_clip_norm=None,
         cache_frozen_targets: bool = True,
         uniform_regret_ties: bool = True,
         **kwargs,
@@ -55,26 +58,11 @@ class StructuredHULHERegretTrainer(_StructuredModelMixin, VRDCFRPlusRegretTraine
         self.feature_layout = feature_encoder.policy_layout
         self.structured_branch_width = int(branch_width)
         self.replay_seed = int(replay_seed)
+        self.gradient_clip_norm = gradient_clip_norm
         self.cache_frozen_targets = cache_frozen_targets
         self.uniform_regret_ties = uniform_regret_ties
         super().__init__(*args, **kwargs)
         self.predictor_enabled = False
-
-    def regret_matching(self, regrets, legal_actions):
-        if self.uniform_regret_ties and self.use_regret_matching_argmax:
-            values = np.asarray(regrets)[legal_actions]
-            if np.max(values) <= 0:
-                best = np.asarray(legal_actions)[values == np.max(values)]
-                policy = np.zeros_like(regrets)
-                policy[best] = 1.0 / len(best)
-                return policy
-        return super().regret_matching(regrets, legal_actions)
-
-    def train_model(self, iteration):
-        if not self.cache_frozen_targets:
-            return super().train_model(iteration)
-        from .holdem_fitting import fit_cached_regrets
-        return fit_cached_regrets(self, iteration)
 
     def get_infostate_tensor(self, state, player=None):
         return self.feature_encoder.information_state(state, player)
@@ -111,7 +99,6 @@ class StructuredHULHEAveragePolicyTrainer(
         super().__init__(*args, **kwargs)
 
     def train_model(self, iteration):
-        from .holdem_fitting import fit_validated_policy
         return fit_validated_policy(self, iteration)
 
     def get_infostate_tensor(self, state, player=None):
@@ -128,7 +115,7 @@ class StructuredHULHEAveragePolicyTrainer(
 
 
 class StructuredHULHEQMember(
-    _StructuredModelMixin, TemporallyAveragedCrossFittedQMember
+    ReplayScaledFitMixin, _StructuredModelMixin, TemporallyAveragedCrossFittedQMember
 ):
     def __init__(
         self,
@@ -136,12 +123,14 @@ class StructuredHULHEQMember(
         feature_encoder: HULHEFeatureEncoder,
         branch_width: int,
         replay_seed: int,
+        minimum_train_steps: int,
         **kwargs,
     ):
         self.feature_encoder = feature_encoder
         self.feature_layout = feature_encoder.full_state_layout
         self.structured_branch_width = int(branch_width)
         self.replay_seed = int(replay_seed)
+        self.minimum_train_steps = int(minimum_train_steps)
         super().__init__(*args, **kwargs)
 
     def get_history_tensor(self, state):
@@ -175,6 +164,7 @@ class StructuredHULHEQEnsemble(TemporallyAveragedCrossFittedQEnsemble):
         total_buffer_size: int,
         batch_size: int,
         train_steps: int,
+        minimum_train_steps: int,
         logger,
         regret_trainers,
         device: str,
@@ -200,6 +190,7 @@ class StructuredHULHEQEnsemble(TemporallyAveragedCrossFittedQEnsemble):
                 device,
                 gradient_clip_norm=gradient_clip_norm,
                 target_average_window=self.target_average_window,
+                minimum_train_steps=minimum_train_steps,
                 feature_encoder=feature_encoder,
                 branch_width=branch_width,
                 replay_seed=int(replay_seed) + index,
@@ -210,7 +201,7 @@ class StructuredHULHEQEnsemble(TemporallyAveragedCrossFittedQEnsemble):
         self._active_add_count = 0
 
 
-class StructuredHULHEResidualCalibrationTrainer(ResidualCalibrationTrainer):
+class StructuredHULHEResidualCalibrationTrainer(ReplayScaledFitMixin, ResidualCalibrationTrainer):
     def __init__(
         self,
         *,
@@ -221,12 +212,14 @@ class StructuredHULHEResidualCalibrationTrainer(ResidualCalibrationTrainer):
         buffer_size: int,
         batch_size: int,
         train_steps: int,
+        minimum_train_steps: int,
         device: str,
         minimum_variance: float,
         feature_encoder: HULHEFeatureEncoder,
         branch_width: int,
     ):
         self.feature_encoder = feature_encoder
+        self.minimum_train_steps = int(minimum_train_steps)
         super().__init__(
             infostate_size=infostate_size,
             action_size=action_size,
@@ -269,6 +262,8 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
         critic_network_layers=None,
         calibration_network_layers=None,
         calibration_branch_width: int | None = None,
+        critic_min_train_steps: int = 250,
+        calibration_min_train_steps: int = 100,
         feature_encoder_id: str = ENCODER_ID,
         cache_frozen_regret_targets: bool = True,
         uniform_regret_ties: bool = True,
@@ -277,6 +272,8 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
         **kwargs,
     ):
         self.feature_encoder = make_feature_encoder(feature_encoder_id)
+        self.critic_min_train_steps = int(critic_min_train_steps)
+        self.calibration_min_train_steps = int(calibration_min_train_steps)
         self.cache_frozen_regret_targets = cache_frozen_regret_targets
         self.uniform_regret_ties = uniform_regret_ties
         self.policy_validation_fraction = policy_validation_fraction
@@ -371,6 +368,7 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
                 feature_encoder=self.feature_encoder,
                 branch_width=self.structured_branch_width,
                 replay_seed=self.feature_replay_seed + 200 + player,
+                gradient_clip_norm=self.regret_policy_gradient_clip_norm,
                 cache_frozen_targets=self.cache_frozen_regret_targets,
                 uniform_regret_ties=self.uniform_regret_ties,
             )
@@ -393,6 +391,7 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
             total_buffer_size=self.baseline_buffer_size,
             batch_size=self.baseline_batch_size,
             train_steps=self.baseline_network_train_steps,
+            minimum_train_steps=self.critic_min_train_steps,
             logger=self.logger,
             regret_trainers=self.regret_trainers,
             device=self.device,
@@ -409,6 +408,7 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
             buffer_size=self.calibration_buffer_size,
             batch_size=self.calibration_batch_size,
             train_steps=self.calibration_train_steps,
+            minimum_train_steps=self.calibration_min_train_steps,
             device=self.device,
             minimum_variance=self.calibration_minimum_variance,
             feature_encoder=self.feature_encoder,

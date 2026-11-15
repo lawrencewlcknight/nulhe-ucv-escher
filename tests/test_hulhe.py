@@ -242,7 +242,7 @@ def test_invalid_network_dimensions_rejected(key, value):
 
 def test_cli_checkpoint_cadence_and_resume(tmp_path):
     from hulhe_escher.train import main
-    args = ["--smoke", "--checkpoint-every", "2", "--output", str(tmp_path)]
+    args = ["--smoke", "--policy-every", "2", "--checkpoint-every", "2", "--output", str(tmp_path)]
     main([*args, "--iterations", "2"])
     assert not (tmp_path / "policy_000001.pkl").exists()
     assert (tmp_path / "policy_000002.pkl").exists()

@@ -675,12 +675,39 @@ class RegretTrainer(Trainer):
         legal_regrets = model(x) * mask
         return legal_regrets
 
+    def _clip_gradients(self):
+        """Optional specialization; inherited learners retain their old behavior."""
+
+    def batched_regret_matching(self, regrets, legal_mask):
+        """Torch equivalent of collection regret_matching, including fallback.
+
+        Terminal replay rows can have no legal actions; return zeros for them.
+        Keep signed regrets until after choosing the fallback action.
+        """
+        legal = legal_mask == 1
+        positive = torch.where(legal, torch.clamp(regrets, min=0), 0.0)
+        mass = positive.sum(dim=-1, keepdim=True)
+        if self.use_regret_matching_argmax:
+            masked = regrets.masked_fill(~legal, float("-inf"))
+            if getattr(self, "uniform_regret_ties", False):
+                tied = legal & (masked == masked.max(dim=-1, keepdim=True).values)
+                fallback = tied.to(regrets.dtype) / tied.sum(dim=-1, keepdim=True).clamp(min=1)
+            else:
+                fallback = torch.nn.functional.one_hot(
+                    masked.argmax(dim=-1), regrets.shape[-1]
+                ).to(regrets.dtype) * legal
+        else:
+            fallback = legal.to(regrets.dtype) / legal.sum(dim=-1, keepdim=True).clamp(min=1)
+        denominator = torch.where(mass > 0, mass, torch.ones_like(mass))
+        return torch.where(mass > 0, positive / denominator, fallback)
+
     def train_model(self, T):
         for train_step in range(self.train_steps):
             samples = self.buffer.sample(self.batch_size)
             loss = self.compute_loss(samples, T)
             self.optimizer.zero_grad()
             loss.backward()
+            self._clip_gradients()
             self.optimizer.step()
             if train_step % 100 == 0:
                 self.logger.info(
@@ -714,6 +741,8 @@ class RegretTrainer(Trainer):
         return regrets
 
     def regret_matching(self, regrets, legal_actions):
+        if not len(legal_actions):
+            return np.zeros_like(regrets)
         legal_regrets = np.zeros_like(regrets)
         legal_regrets[legal_actions] = regrets[legal_actions]
         pos_sum = np.sum(np.maximum(legal_regrets, 0))
@@ -722,8 +751,13 @@ class RegretTrainer(Trainer):
         else:
             policy = np.zeros_like(regrets)
             if self.use_regret_matching_argmax:
-                max_action_id = legal_actions[np.argmax(regrets[legal_actions])]
-                policy[max_action_id] = 1
+                if getattr(self, "uniform_regret_ties", False):
+                    values = regrets[legal_actions]
+                    best = np.asarray(legal_actions)[values == np.max(values)]
+                    policy[best] = 1.0 / len(best)
+                else:
+                    max_action_id = legal_actions[np.argmax(regrets[legal_actions])]
+                    policy[max_action_id] = 1
             else:
                 policy[legal_actions] = 1 / len(legal_actions)
             return policy

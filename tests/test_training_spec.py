@@ -19,7 +19,7 @@ def single_thread():
 def test_production_spec_and_limit_capacity_bound():
     c = baseline_config()
     assert (c['num_traversals'], c['advantage_network_train_steps'],
-            c['baseline_network_train_steps'], c['calibration_train_steps']) == (10000,1000,2500,2000)
+            c['baseline_network_train_steps'], c['calibration_train_steps']) == (10000,750,2500,2000)
     assert c['advantage_buffer_size'] == 250000
     assert c['advantage_buffer_size'] >= c['num_traversals'] * 23
     assert c['ave_policy_buffer_size'] == 2000000
@@ -130,22 +130,6 @@ def test_validation_ce_uses_iteration_masses():
     assert actual==pytest.approx(expected.item())
 
 
-def test_recovery_policy_clocks_are_independent_and_resume():
-    schedule=CheckpointSchedule()
-    def due(seconds,final=False):
-        return schedule.due(iteration=1,final=final,active_seconds=seconds,
-                            recovery_seconds=3600,policy_seconds=21600)
-    assert due(3599)==(False,False)
-    assert due(3600)==(True,False)
-    schedule.completed(3600,recovery=True,policy=False)
-    schedule=CheckpointSchedule(**json.loads(json.dumps(schedule.state())))
-    assert due(7199)==(False,False)
-    assert due(21600)==(True,True)
-    schedule.completed(21600,recovery=True,policy=True)
-    assert due(21601)==(False,False)
-    assert due(21601,True)==(True,True)
-
-
 def test_cli_recovery_without_policy_and_rng_isolation(tmp_path, monkeypatch):
     from hulhe_escher import train
     original=train.CheckpointSchedule.due
@@ -153,13 +137,20 @@ def test_cli_recovery_without_policy_and_rng_isolation(tmp_path, monkeypatch):
         if not kwargs['final']: return True,False
         return original(self,**kwargs)
     monkeypatch.setattr(train.CheckpointSchedule,'due',forced)
+    saved = {}
+    original_save = train.save_training_state
+    def capture_first(path, payload):
+        if path.name == 'state_000001':
+            saved.update(deepcopy(payload))
+        return original_save(path, payload)
+    monkeypatch.setattr(train, 'save_training_state', capture_first)
     train.main(['--smoke','--iterations','2','--output',str(tmp_path)])
-    assert (tmp_path/'state_000001').is_dir()
+    assert not (tmp_path/'state_000001').exists()
     assert not (tmp_path/'policy_000001.pkl').exists()
     assert (tmp_path/'policy_000002.pkl').is_file()
     from hulhe_escher.training_state import read_training_state,restore_training_state
     config=smoke_config()
-    payload=read_training_state(tmp_path/'state_000001')
+    payload=saved
     assert payload['checkpoint_schedule']['last_policy_seconds']==0
     kwargs=dict(seed=0,repository_commit=train.source_fingerprint(),config=config)
     restored=make_solver(config)

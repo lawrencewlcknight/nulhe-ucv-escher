@@ -5,6 +5,36 @@ The project uses the [fixed-limit interface](GAME_INTERFACE.md). The HUNL-specif
 section below is historical and does not describe the current game.
 Package references below use the new namespace.
 
+## Cross-variant alignment v0.8.0
+
+The current common settings and deliberate game-size differences are specified
+in [TRAINING_ALIGNMENT.md](TRAINING_ALIGNMENT.md).
+
+Automatic recovery checks run every **21,600 wall-clock seconds (six hours)**,
+on a fixed grid from run start. A check skips saving if a successful recovery
+checkpoint was completed less than **3,600 seconds (one hour)** ago. This includes
+recovery snapshots saved alongside policy fits. At exactly one hour, saving is
+eligible again. A skipped check advances to the next six-hour slot; it does not
+retry when the one-hour window expires. For example, a save at 5.5 hours suppresses
+the six-hour check, with the next check at 12 hours.
+
+Checks run after completed iterations, so long iterations can delay them.
+Downtime counts as wall time; missed slots cause at most one check on resumption.
+The grid, last successful save time and skipped checks survive restart. A skipped
+check updates only the small latest-pointer metadata, without rewriting replay.
+Policy fitting remains every **21,600 active learner seconds**, excluding policy
+fitting, persistence and downtime. Policy-triggered, explicit iteration and final
+saves remain unconditional.
+
+`--checkpoint-every N` adds recovery-only saves every N iterations (default 0).
+`--policy-every N` adds policy fits every N iterations (production default 0;
+smoke default 1). Set `--policy-every 0` for time-only policy scheduling in smoke.
+`--recovery-seconds 0` disables timed recovery; `--checkpoint-seconds` is an alias
+for `--recovery-seconds`. Policy fits also save full recovery state, including the
+selected policy and matching optimizer. The final requested iteration always
+fits a policy and saves recovery state. Both schedule clocks survive resume;
+recovery-only saves never fit a policy. No background timer interrupts learning.
+
 ## Current HULHE network capacity
 
 The November 2026 capacity review selects the following sizes for fresh runs.
@@ -96,17 +126,17 @@ it beneficial.
 | Algorithm | Outcome-sampling UCV-ESCHER with corrected all-action estimates and DCFR+ cumulative-regret fitting |
 | Control coefficient | Fixed beta = 1 |
 | Critics | Two cross-fit members; trajectory assignment determines held-out collection control |
-| Critic fitting | Persistent online networks/Adam; 2,500 updates per member per iteration; batch 2,048; LR 0.001; gradient norm cap 10 |
+| Critic fitting | Persistent online networks/Adam; 250–2,500 updates per member per iteration, scaled to occupied replay; batch 2,048; LR 0.001; gradient norm cap 10 |
 | Target critics | Frozen during collection/fit; parameter average over the last four completed fits (available history during warmup) |
 | TD target cache | Rebuilt once per eligible fit; no cache reused across target/replay/iteration changes |
 | Sampling | Learned residual-standard-deviation proposal, mixed with 20% uniform legal-action probability mass |
-| Calibration | Enabled; 2,000 updates per iteration; batch 2,048; LR 0.001; minimum variance 1e-5 |
-| Regret fitting | One network per player; 1,000 updates per player per iteration; batch 2,048; LR 0.001; alpha 2.3; persistent cumulative networks; frozen targets cached once per fit |
+| Calibration | Enabled; 100–2,000 updates per iteration, scaled to occupied replay; batch 2,048; LR 0.001; minimum variance 1e-5 |
+| Regret fitting | One network per player; 750 updates per player per iteration; batch 2,048; LR 0.001; alpha 2.3; persistent cumulative networks; frozen targets cached once per fit; gradient norm cap 10 |
 | Non-positive regret fallback | Uniform among exactly tied maximum legal regrets; unequal negative regrets retain argmax; positive regret matching unchanged |
 | Instantaneous predictor | Disabled; prediction gate fixed at zero |
 | Average policy | Grouped soft-target cross entropy; iteration weighting gamma 2; reset each fit; 20,000 updates with best validation-checkpoint selection; batch 2,048; LR 0.003 |
 | Policy fit cadence | Every six active learner hours and final endpoint; independent of recovery saves |
-| Recovery cadence | Every active learner hour and final endpoint, at completed outer iterations |
+| Recovery cadence | Every six wall-clock hours unless a recovery was saved in the preceding hour; final endpoint always saves |
 | Collection | 10,000 trajectories per player per iteration, 20,000 total; alternating player updates |
 | Networks | Three branches per network; regret/policy 96-wide branches and 2×256 trunk; critics 96-wide branches and 2×192 trunk; calibration 64-wide branches and 2×128 trunk |
 | Regret replay | Capacity 250,000 per player, reset for each player collection batch |
@@ -120,17 +150,19 @@ it beneficial.
 **Leduc and FHP policy-fitting cadences differ.** Experiment 51 retained 20,000
 policy updates every iteration, whereas the selected FHP system only fits its
 policy at checkpoints. The runner restores training RNG state after each policy
-fit. Its independent recovery/policy schedules exclude fitting, persistence and
-downtime from the clock. Schedule state is saved with full continuation. An
-explicit `--checkpoint-every` retains the older coupled iteration trigger.
+fit. Recovery-only saves do not fit a policy. Recovery uses wall time; policy
+extraction uses active learner time. See the shared schedule below.
 
 ## Production training specification — November 2026
 
 These settings select one production learner, without a configuration sweep.
-The regret budget increases modestly from 750 to 1,000 updates; the FHP-derived
-critic and calibration budgets, learning rates, network sizes, sampling floor,
-fixed beta and four-fit target averaging are retained. This is a reasoned
-specification, not measured evidence of improved Hold'em strength.
+The regret budget is 750 updates in both Hold'em variants. Critics scale from
+250 to 2,500 updates and calibration from 100 to 2,000 based on occupied replay;
+fits wait for a full minibatch. Regret gradients are clipped at norm 10. Learning
+rates, network sizes, sampling floor, fixed beta and four-fit target averaging
+are retained. This is a reasoned specification, not measured evidence of
+improved Hold'em strength. See [the shared specification](TRAINING_ALIGNMENT.md)
+for the exact schedule and safeguards.
 
 The game permits at most 23 decisions per hand. At 10,000 traversals, even
 counting every decision as a player-regret example gives at most 230,000 rows.

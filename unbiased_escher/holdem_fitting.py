@@ -9,10 +9,40 @@ import numpy as np
 import torch
 
 
+class RegretFitMixin:
+    """Identical cached/uncached fitting, clipping and skip semantics for both games."""
+
+    def train_model(self, iteration):
+        started = time.perf_counter()
+        self.last_fit_stats = {"rows": len(self.buffer), "updates": 0,
+                               "clipped_updates": 0, "max_gradient_norm": 0.0}
+        self.last_target_cache_stats = {}
+        # A deterministic opponent can terminate every hand before this player
+        # acts. Preserve the network/optimizer instead of fitting an empty batch.
+        if not len(self.buffer) or self.train_steps <= 0:
+            self.last_fit_stats.update(loss=None, seconds=0.0)
+            return None
+        loss = (fit_cached_regrets(self, iteration) if self.cache_frozen_targets
+                else super().train_model(iteration))
+        self.last_fit_stats.update(loss=loss, updates=self.train_steps,
+                                   seconds=time.perf_counter() - started)
+        return loss
+
+    def _clip_gradients(self):
+        if self.gradient_clip_norm is not None:
+            norm = float(torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), self.gradient_clip_norm, error_if_nonfinite=True
+            ).item())
+            self.last_fit_stats["max_gradient_norm"] = max(
+                self.last_fit_stats["max_gradient_norm"], norm)
+            self.last_fit_stats["clipped_updates"] += int(norm > self.gradient_clip_norm)
+
+
+
 def fit_cached_regrets(trainer, iteration):
     size = min(trainer.buffer.cur_id, trainer.buffer.buffer_size)
     if size == 0:
-        raise ValueError("Cannot fit regrets from an empty collection batch")
+        return None
     batch = min(trainer.batch_size, size)
     started = time.perf_counter()
     targets = torch.empty((size, trainer.output_size), device=trainer.device)
@@ -41,6 +71,7 @@ def fit_cached_regrets(trainer, iteration):
         loss = trainer.loss_fn(trainer.predict(trainer.model, features, masks), targets[indices])
         trainer.optimizer.zero_grad()
         loss.backward()
+        trainer._clip_gradients()
         trainer.optimizer.step()
     trainer.target_model.load_state_dict(trainer.model.state_dict())
     return float(loss.item())
@@ -51,7 +82,7 @@ def policy_validation_mask(features, fraction):
     array = features.detach().cpu().numpy()
     threshold = int(fraction * 2**64)
     return np.fromiter((int.from_bytes(blake2b(row.tobytes(), digest_size=8,
-                        person=b"hulhe-policy-v1").digest(), "little") < threshold
+                        person=b"holdem-policy-v1").digest(), "little") < threshold
                         for row in array), dtype=bool, count=len(array))
 
 
