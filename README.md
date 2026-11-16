@@ -295,3 +295,14 @@ For a local smoke integration test without cloud services, run
 checkpoint, restores four successive stages, verifies the final recovery and runs
 all comparisons against an offline test opponent. Such results are labelled smoke
 and cannot support strength claims.
+
+To recover a continuation stopped while publishing a completed stage, the
+coordinator accepts `--resume-checkpoint P14 --expected-resume-sha256 HASH` (also
+P20/P26/P32). Use its retained workspace and original baseline/source arguments.
+It requires a failed run whose latest full state exactly matches that completed
+policy, verifies a fresh full-state restore, repairs cloud publication, and then
+executes only the remaining stages on the original cumulative time grid. It
+rejects an intermediate recovery that has no matching completed policy. Previous
+failure reports and stage logs are retained under numbered retry names. Deploy
+the updated coordinator/uploader separately from the immutable archived trainer;
+do not change the archived training source or bypass its resume contract.

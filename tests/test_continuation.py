@@ -176,3 +176,53 @@ def test_six_hour_stage_boundaries_preserve_learning_state(continued,tmp_path):
     for key in ('regret_trainers','q_ensemble','calibration','gate_controller','rng','actors','replay_rng','parallel_contract'):
         equal(a[key],b[key])
     equal(a['average_policy_trainer']['buffer'],b['average_policy_trainer']['buffer'])
+
+
+def test_failed_p14_publication_resumes_without_repeating_training(continued, tmp_path, monkeypatch):
+    from hulhe_escher import continuation
+    baseline, archived, complete = continued
+    output = tmp_path/'retry'
+    uploads = []
+    def fail_p14(root, uri, label):
+        uploads.append(label)
+        if label == 'P14':
+            raise subprocess.CalledProcessError(1, ['gcloud','storage','rsync'], stderr='HTTPError 503')
+    monkeypatch.setattr(continuation, 'upload_checkpoint', fail_p14)
+    with pytest.raises(subprocess.CalledProcessError):
+        run_continuation(baseline, archived, output, stage_seconds=.001, wall_seconds=180,
+                         allow_smoke=True, upload_uri='gs://test/run')
+    failed = json.loads((output/'continuation.json').read_text())
+    assert failed['status'] == 'FAILED' and list(failed['checkpoints']) == ['P8','P14']
+    p14 = failed['checkpoints']['P14']
+    original_policy = (output/'P14.pkl').read_bytes()
+    original_log = (output/'train-P14.log').read_bytes()
+    assert p14['outer_iteration'] == 2
+    # Incorrect checkpoint identity must fail before mutation or verification.
+    before = (output/'continuation.json').read_bytes()
+    with pytest.raises(ValueError, match='Latest full recovery'):
+        run_continuation(baseline, archived, output, stage_seconds=.001, allow_smoke=True,
+                         resume_checkpoint='P14', expected_resume_sha256='0'*64)
+    assert (output/'continuation.json').read_bytes() == before
+    uploads.clear()
+    def publish(root, uri, label):
+        # A full fresh-process restore must precede the repaired P14 publication.
+        if label == 'P14':
+            assert json.loads((root/'retry-1-reload-P14.json').read_text())['status'] == 'VERIFIED'
+            assert not (root/'retry-1-train-P20.log').exists()
+        uploads.append(label)
+    monkeypatch.setattr(continuation, 'upload_checkpoint', publish)
+    report = run_continuation(baseline, archived, output, stage_seconds=.001, wall_seconds=180,
+        allow_smoke=True, upload_uri='gs://test/run', resume_checkpoint='P14',
+        expected_resume_sha256=p14['sha256'])
+    assert uploads == ['P14','P20','P26','P32']
+    assert report['status'] == 'TRAINING_COMPLETE' and report['resume_recovery_verified']
+    assert report['final_recovery_verified']
+    assert [report['checkpoints'][name]['outer_iteration'] for name in LABELS] == [1,2,3,4,5]
+    assert (output/'P14.pkl').read_bytes() == original_policy
+    assert (output/'train-P14.log').read_bytes() == original_log
+    assert not (output/'retry-1-train-P14.log').exists()
+    assert json.loads((output/'retry-1-previous-report.json').read_text())['status'] == 'FAILED'
+    assert json.loads((output/'retry-1-reload-P32.json').read_text())['status'] == 'VERIFIED'
+    with pytest.raises(ValueError, match='failed run'):
+        run_continuation(baseline, archived, output, stage_seconds=.001, allow_smoke=True,
+                         resume_checkpoint='P32', expected_resume_sha256=report['checkpoints']['P32']['sha256'])

@@ -7,11 +7,11 @@ import tarfile
 import threading
 
 from .checkpointing import sha256_file
-from .cloud_worker import sync_output
 from .continuation import checked_pointer, run_continuation
 from .continuation_evaluate import run_suite
 from .fo2_setup import prepare
 from .train import write_json
+from .storage_transfer import run_transfer
 
 
 def storage(*args):
@@ -51,16 +51,26 @@ def download_source(uri, workspace, expected_p8_sha256):
     return source,trainer
 
 
-def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256):
+def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
+              resume_checkpoint=None, expected_resume_sha256=None,
+              training_wall_seconds=108000):
     # Avoid overwriting or pruning any part of the original experiment.
     source_uri,output_uri=source_uri.rstrip('/'),output_uri.rstrip('/')
     if source_uri==output_uri or output_uri.startswith(source_uri+'/') or source_uri.startswith(output_uri+'/'):
         raise ValueError('Continuation must use a separate sibling cloud prefix')
     root=Path(workspace)
-    source,trainer=download_source(source_uri,root,expected_p8_sha256)
+    if resume_checkpoint:
+        source, trainer = root/'original-run', root/'archived-trainer'
+        if sha256_file(source/'P8.pkl') != expected_p8_sha256:
+            raise ValueError('Retained P8 does not match the requested original baseline')
+        if not trainer.is_dir():
+            raise ValueError('Original archived trainer is missing')
+    else:
+        source,trainer=download_source(source_uri,root,expected_p8_sha256)
     # The resumable state belongs to this archived trainer, not to the new
     # coordinator source.tar.gz. Publish it explicitly for future continuations.
-    storage('cp','--if-generation-match=0',source/'source.tar.gz',output_uri+'/training_source.tar.gz')
+    if not resume_checkpoint:
+        storage('cp','--if-generation-match=0',source/'source.tar.gz',output_uri+'/training_source.tar.gz')
     output=root/'run'
     stop=threading.Event()
     def sync(final=False):
@@ -71,8 +81,8 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256):
         exclude=r'^training/(?:state_[0-9]+(?:/.*)?|manifest\.json|latest\.json)$|^P[0-9]+\.(?:pkl|json)$'
         if not final:
             exclude+=r'|\.jsonl$'
-        if sync_output(output,output_uri,exclude=exclude)!=0:
-            raise RuntimeError('Continuation report upload failed')
+        run_transfer(['gcloud', 'storage', 'rsync', '--recursive', '--exclude', exclude,
+                      str(output), output_uri], timeout=1200)
     def publish_loop():
         while not stop.wait(120):
             try:
@@ -84,7 +94,9 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256):
     try:
         # Fail before paid training if the evaluator assets cannot be prepared.
         assets=prepare(root/'fo2-assets')
-        report=run_continuation(source,trainer,output,upload_uri=output_uri)
+        report=run_continuation(source,trainer,output,upload_uri=output_uri,
+            resume_checkpoint=resume_checkpoint, expected_resume_sha256=expected_resume_sha256,
+            wall_seconds=training_wall_seconds)
         write_json(output/'provenance.json',dict(source_uri=source_uri,output_uri=output_uri,
             expected_p8_sha256=expected_p8_sha256,original_source_sha256=sha256_file(source/'source.tar.gz'),
             training_source_fingerprint=report['training_source_fingerprint'],
@@ -112,6 +124,9 @@ def main():
     p.add_argument('--source-uri',required=True)
     p.add_argument('--output-uri',required=True)
     p.add_argument('--expected-p8-sha256',required=True)
+    p.add_argument('--resume-checkpoint', choices=('P14', 'P20', 'P26', 'P32'))
+    p.add_argument('--expected-resume-sha256')
+    p.add_argument('--training-wall-seconds', type=float, default=108000)
     run_cloud(**vars(p.parse_args()))
 
 
