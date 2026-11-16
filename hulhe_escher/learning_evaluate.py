@@ -122,19 +122,21 @@ def validate_design(seed, workers, pilot_pairs, minimum, maximum, max_seconds, e
         raise ValueError("Time and effect must be finite and positive")
 
 
-def runtime_plan(pilot, rate, remaining, *, minimum, maximum, effect_bb100):
+def runtime_plan(pilot, rate, remaining, *, minimum, maximum, effect_bb100, alpha=.05):
     # Do not silently lower the preregistered minimum when it will not fit.
     affordable = max(0, int(.8*rate*max(0, remaining)))
     plan = sample_plan(pilot, minimum=minimum, maximum=max(minimum, min(maximum, affordable)),
-                       effect_bb100=effect_bb100)
+                       effect_bb100=effect_bb100, alpha=alpha)
     plan.update(pilot_pairs_per_second=rate, requested_maximum=maximum,
                 affordable_pairs=affordable, minimum_fits_budget=affordable >= minimum)
     return plan
 
 
 def run_evaluation(a, b, output, *, seed=8301, workers=8, pilot_pairs=10000,
-                   minimum=100000, maximum=1000000, max_seconds=7200, effect_bb100=2.):
+                   minimum=100000, maximum=1000000, max_seconds=7200, effect_bb100=2., alpha=.05):
     validate_design(seed, workers, pilot_pairs, minimum, maximum, max_seconds, effect_bb100)
+    if not 0 < alpha < 1:
+        raise ValueError("Invalid significance level")
     root = Path(output)
     root.mkdir(parents=True, exist_ok=False)
     specs = {"a": dict(kind="checkpoint", checkpoint=str(a)),
@@ -144,7 +146,7 @@ def run_evaluation(a, b, output, *, seed=8301, workers=8, pilot_pairs=10000,
                   for k, v in specs.items()}
     write_json(root / "manifest.json", dict(policies=identities, game=serialisable_game_definition(),
         seed=seed, workers=workers, pilot_pairs=pilot_pairs, minimum=minimum, maximum=maximum,
-        max_seconds=max_seconds, effect_bb100=effect_bb100, unit="duplicate_pair_average_bb",
+        max_seconds=max_seconds, effect_bb100=effect_bb100, alpha=alpha, unit="duplicate_pair_average_bb",
         pilot_seed=seed, confirmation_seed=seed+1))
     deadline = time.monotonic()+max_seconds
     report = dict(status="STARTING", result=None)
@@ -158,7 +160,7 @@ def run_evaluation(a, b, output, *, seed=8301, workers=8, pilot_pairs=10000,
             else:
                 plan = runtime_plan([r["score"]["mean_bb"] for r in pilot],
                     pilot_pairs/(time.monotonic()-started), deadline-time.monotonic(),
-                    minimum=minimum, maximum=maximum, effect_bb100=effect_bb100)
+                    minimum=minimum, maximum=maximum, effect_bb100=effect_bb100, alpha=alpha)
                 write_json(root / "plan.json", plan)
                 report["plan"] = plan
                 if not plan["minimum_fits_budget"]:
@@ -170,7 +172,7 @@ def run_evaluation(a, b, output, *, seed=8301, workers=8, pilot_pairs=10000,
                     complete = len(main) == plan["selected"]
                     report.update(status="COMPLETE" if complete else "INCOMPLETE_TIME_LIMIT",
                         completed_pairs=len(main), result=estimate([r["score"]["mean_bb"] for r in main],
-                        complete=complete) if len(main) >= 2 else None)
+                        complete=complete, alpha=alpha) if len(main) >= 2 else None)
     except Exception as exc:
         report.update(status="EVALUATION_ERROR", error_type=type(exc).__name__, reason=str(exc))
     finally:
@@ -190,6 +192,7 @@ def main(argv=None):
     p.add_argument("--maximum", type=int, default=1000000)
     p.add_argument("--max-seconds", type=float, default=7200)
     p.add_argument("--effect-bb100", type=float, default=2.)
+    p.add_argument("--alpha", type=float, default=.05)
     args = vars(p.parse_args(argv))
     result = run_evaluation(**args)
     print(json.dumps(result, indent=2))

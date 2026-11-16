@@ -225,3 +225,73 @@ See [the learning experiment protocol](docs/LEARNING_EXPERIMENT.md) for P4/P8
 training and restart, statistically planned head-to-head and Fell Omen 2
 comparisons, memory/throughput preflight and the reviewable Google Cloud launcher.
 The launcher prepares files by default; only `--execute` creates paid VMs.
+
+### Continue P8 for another 24 active training hours
+
+`tools/launch_continuation.py` prepares a reviewable launch bundle. `--execute`
+submits one `c4-standard-16` VM. Training uses eight collection workers and eight
+Torch threads inherited from the original P8 contract. The VM performs training
+and evaluation sequentially, so no evaluator VM waits idle during training.
+
+The continuation restores the **full** P8 recovery, not just `P8.pkl`. It runs
+four stages ending at approximately P14, P20, P26 and P32. Targets are measured
+from P8's actual active time (about 8.04 hours), at completed iteration boundaries;
+policy fitting, persistence, uploads and evaluations do not consume the 24-hour
+active training budget. A playable policy and full recovery are uploaded at each
+stage. All five playable policies are kept; only the newest continuation recovery
+is retained. The original P8 run and recovery remain untouched.
+
+The archived original trainer executes in a separate directory with the original
+source fingerprint, runtime, configuration, replay, optimizers and actor RNGs.
+The coordinator does **not** bypass the strict resume contract or modify the
+learning algorithm. Initial and final full recoveries are loaded into a fresh
+solver process and checked against their playable exports. `training_source.tar.gz`
+in the new cloud run contains the original trainer needed to resume P32 later;
+`source.tar.gz` contains the new coordinator/evaluator. See `resume.json` for the
+recovery locations. Downloading only analytical results is insufficient to resume.
+
+After the final reload check succeeds, evaluation runs:
+
+* Primary: P32 vs P8, duplicate deals with seats swapped, 95% interval.
+* Secondary: P14/P8, P20/P14, P26/P20 and P32/P26 head-to-head, plus each new
+  policy's FO2 performance minus P8's performance. These eight tests use
+  Bonferroni-adjusted 99.375% intervals, with formal improvement claims gated on
+  the primary test passing.
+* FO2: all five policies play the same deals in both seats against the pinned
+  **free-fold-to-check adaptation**, with independent action streams. Absolute
+  scores have descriptive 95% intervals. A group contains ten hands.
+
+Each evaluation uses a disjoint pilot (10,000 groups/pairs), freezes sample size
+before confirmation, targets a 2 bb/100 effect at 80% estimated power, and bounds
+confirmation between 100,000 and 1,000,000 groups/pairs. FO2 sample planning uses
+the largest requirement across the four paired improvements and descriptive
+precision targets. Incomplete runs cannot produce confirmatory claims. Sample
+caps and estimated detectable effects are recorded; one training seed does not
+establish exploitability or generality across seeds.
+
+The trainer has a 30-hour wall budget; evaluation has a separate 12-hour budget
+(20% reserved for the five head-to-head tests). The VM stops on completion/failure
+and has a 44-hour hard limit including setup and publication. Stopped disks remain
+until explicitly deleted. Progress is published every two minutes; full hand
+journals are uploaded at the end. Results are in `continuation.json`,
+`evaluation/report.json` and `evaluation/continuation_report.md`.
+
+Example (omit `--execute` to prepare only; use a fresh run name/output directory):
+
+```bash
+python3 tools/launch_continuation.py \
+  --project clever-overview-399515 --zone europe-west1-b \
+  --bucket gs://clever-overview-399515-fhp-escher-results/hulhe \
+  --service-account fhp-escher-runner@clever-overview-399515.iam.gserviceaccount.com \
+  --source-uri gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-4plus4-20261115-104829-repair1 \
+  --expected-p8-sha256 8713598dd4e670aa937255eb6700e42a29c60df660ec6fd4a44e740fa25d72ca \
+  --run-name hulhe-plus24-UNIQUE-TIMESTAMP \
+  --output outputs/cloud-hulhe-plus24-UNIQUE-TIMESTAMP \
+  --execute
+```
+
+For a local smoke integration test without cloud services, run
+`python -m pytest tests/test_continuation.py`. It trains a small full-architecture
+checkpoint, restores four successive stages, verifies the final recovery and runs
+all comparisons against an offline test opponent. Such results are labelled smoke
+and cannot support strength claims.

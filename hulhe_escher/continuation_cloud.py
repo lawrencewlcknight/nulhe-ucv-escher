@@ -1,0 +1,119 @@
+"""Download an existing P8 recovery, continue, then evaluate; never retrain P8."""
+import argparse
+import json
+from pathlib import Path
+import subprocess
+import tarfile
+import threading
+
+from .checkpointing import sha256_file
+from .cloud_worker import sync_output
+from .continuation import checked_pointer, run_continuation
+from .continuation_evaluate import run_suite
+from .fo2_setup import prepare
+from .train import write_json
+
+
+def storage(*args):
+    subprocess.run(['gcloud','storage',*map(str,args)],check=True,timeout=1800)
+
+
+def extract_source(archive, destination):
+    destination=Path(destination)
+    destination.mkdir(parents=True,exist_ok=False)
+    with tarfile.open(archive,'r:gz') as handle:
+        for member in handle.getmembers():
+            path=Path(member.name)
+            if path.is_absolute() or '..' in path.parts or not member.isfile():
+                raise ValueError('Source archive must contain only safe regular files')
+            target=destination/path
+            target.parent.mkdir(parents=True,exist_ok=True)
+            with handle.extractfile(member) as source, target.open('xb') as out:
+                import shutil
+                shutil.copyfileobj(source,out)
+
+
+def download_source(uri, workspace, expected_p8_sha256):
+    root=Path(workspace)
+    root.mkdir(parents=True,exist_ok=False)
+    source=root/'original-run'
+    (source/'training').mkdir(parents=True)
+    for name in ('P8.json','P8.pkl','training/manifest.json','training/latest.json','source.tar.gz'):
+        storage('cp',uri.rstrip('/')+'/'+name,source/name)
+    if sha256_file(source/'P8.pkl') != expected_p8_sha256:
+        raise ValueError('Downloaded P8 does not match requested baseline')
+    pointer=checked_pointer(source/'training')
+    state=source/'training'/pointer['state']
+    state.mkdir()
+    storage('rsync','--recursive',uri.rstrip('/')+'/training/'+pointer['state'],state)
+    trainer=root/'archived-trainer'
+    extract_source(source/'source.tar.gz',trainer)
+    return source,trainer
+
+
+def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256):
+    # Avoid overwriting or pruning any part of the original experiment.
+    source_uri,output_uri=source_uri.rstrip('/'),output_uri.rstrip('/')
+    if source_uri==output_uri or output_uri.startswith(source_uri+'/') or source_uri.startswith(output_uri+'/'):
+        raise ValueError('Continuation must use a separate sibling cloud prefix')
+    root=Path(workspace)
+    source,trainer=download_source(source_uri,root,expected_p8_sha256)
+    # The resumable state belongs to this archived trainer, not to the new
+    # coordinator source.tar.gz. Publish it explicitly for future continuations.
+    storage('cp','--if-generation-match=0',source/'source.tar.gz',output_uri+'/training_source.tar.gz')
+    output=root/'run'
+    stop=threading.Event()
+    def sync(final=False):
+        if not output.exists():
+            return
+        # Publication of recovery pointers and playable policy markers is ordered
+        # by upload_checkpoint. Bulk sync must never bypass that transaction.
+        exclude=r'^training/(?:state_[0-9]+(?:/.*)?|manifest\.json|latest\.json)$|^P[0-9]+\.(?:pkl|json)$'
+        if not final:
+            exclude+=r'|\.jsonl$'
+        if sync_output(output,output_uri,exclude=exclude)!=0:
+            raise RuntimeError('Continuation report upload failed')
+    def publish_loop():
+        while not stop.wait(120):
+            try:
+                sync()
+            except Exception:
+                pass  # Final sync is mandatory and reports failure.
+    publisher=threading.Thread(target=publish_loop,daemon=True)
+    publisher.start()
+    try:
+        # Fail before paid training if the evaluator assets cannot be prepared.
+        assets=prepare(root/'fo2-assets')
+        report=run_continuation(source,trainer,output,upload_uri=output_uri)
+        write_json(output/'provenance.json',dict(source_uri=source_uri,output_uri=output_uri,
+            expected_p8_sha256=expected_p8_sha256,original_source_sha256=sha256_file(source/'source.tar.gz'),
+            training_source_fingerprint=report['training_source_fingerprint'],
+            fo2_build_fingerprint=assets['fingerprint']))
+        write_json(output/'resume.json',dict(training_source_archive=output_uri+'/training_source.tar.gz',
+            training_manifest=output_uri+'/training/manifest.json',
+            latest_pointer=output_uri+'/training/latest.json',
+            source_fingerprint=report['training_source_fingerprint'],
+            instructions='Restore the latest full state and manifest, use the archived training source and exact runtime; preserve all contract arguments when invoking hulhe_escher.train --resume. Playable policies alone cannot resume training.'))
+        sync()
+        run_suite(output,output/'evaluation',workers=8,max_seconds=43200,assets=root/'fo2-assets')
+    except Exception as exc:
+        output.mkdir(parents=True,exist_ok=True)
+        write_json(output/'cloud_failure.json',dict(error_type=type(exc).__name__,reason=str(exc)))
+        raise
+    finally:
+        stop.set()
+        publisher.join(timeout=1250)
+        sync(final=True)
+
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--workspace',type=Path,required=True)
+    p.add_argument('--source-uri',required=True)
+    p.add_argument('--output-uri',required=True)
+    p.add_argument('--expected-p8-sha256',required=True)
+    run_cloud(**vars(p.parse_args()))
+
+
+if __name__=='__main__':
+    main()
