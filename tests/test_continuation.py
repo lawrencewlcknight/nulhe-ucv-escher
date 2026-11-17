@@ -131,14 +131,18 @@ def test_archive_rejects_traversal(tmp_path):
     assert not (tmp_path/'outside').exists()
 
 
-def test_launch_bundle_has_one_bounded_vm_and_no_secrets(tmp_path):
+@pytest.mark.parametrize('baseline_hours', [8,32])
+def test_launch_bundle_has_one_bounded_vm_and_no_secrets(tmp_path, baseline_hours):
     module=launcher_module()
     plan=module.build_bundle(tmp_path/'bundle',project='test-project',zone='europe-west1-b',
         bucket='gs://test-bucket/hulhe',service_account='runner@test-project.iam.gserviceaccount.com',
-        run_name='hulhe-continuation-test',source_uri='gs://test-bucket/hulhe/original',expected_p8_sha256='a'*64)
+        run_name='hulhe-continuation-test',source_uri='gs://test-bucket/hulhe/original',expected_p8_sha256='a'*64,
+        baseline_hours=baseline_hours)
     creates=[x for x in plan['commands'] if x[1:4]==['compute','instances','create']]
     assert len(creates)==1 and '--max-run-duration' in creates[0] and '44h' in creates[0]
     assert plan['additional_active_hours']==24 and plan['stage_hours']==6
+    assert plan['labels']==[f'P{baseline_hours+6*i}' for i in range(5)]
+    assert plan['primary']==f'P{baseline_hours+24} vs P{baseline_hours}, alpha 0.05'
     script=(tmp_path/'bundle/startup.sh').read_text()
     assert 'continuation_cloud' in script and "trap 'shutdown -h now' EXIT" in script
     with tarfile.open(tmp_path/'bundle/source.tar.gz') as handle:
@@ -226,3 +230,75 @@ def test_failed_p14_publication_resumes_without_repeating_training(continued, tm
     with pytest.raises(ValueError, match='failed run'):
         run_continuation(baseline, archived, output, stage_seconds=.001, allow_smoke=True,
                          resume_checkpoint='P32', expected_resume_sha256=report['checkpoints']['P32']['sha256'])
+
+
+def test_chained_p32_continuation_retries_and_evaluates_shifted_grid(continued, tmp_path, monkeypatch):
+    from hulhe_escher import continuation
+    from hulhe_escher.continuation_evaluate import run_suite
+    _, archived, baseline = continued
+    root = tmp_path/'next24'
+    original = (baseline/'P32.pkl').read_bytes()
+    def fail(root, uri, label):
+        if label == 'P38':
+            raise subprocess.CalledProcessError(1, ['gcloud','storage','rsync'])
+    monkeypatch.setattr(continuation, 'upload_checkpoint', fail)
+    with pytest.raises(subprocess.CalledProcessError):
+        run_continuation(baseline, archived, root, baseline_hours=32,
+            stage_seconds=.001, wall_seconds=180, allow_smoke=True, upload_uri='gs://test/next24')
+    failed = json.loads((root/'continuation.json').read_text())
+    assert list(failed['checkpoints']) == ['P32','P38']
+    uploads=[]
+    monkeypatch.setattr(continuation, 'upload_checkpoint', lambda root,uri,label: uploads.append(label))
+    report = run_continuation(baseline, archived, root, baseline_hours=32,
+        stage_seconds=.001, wall_seconds=180, allow_smoke=True, upload_uri='gs://test/next24',
+        resume_checkpoint='P38', expected_resume_sha256=failed['checkpoints']['P38']['sha256'])
+    labels = ['P32','P38','P44','P50','P56']
+    assert report['labels'] == labels and report['final_recovery_verified']
+    assert uploads == labels[1:]
+    assert [report['checkpoints'][p]['outer_iteration'] for p in labels] == [5,6,7,8,9]
+    assert (root/'P32.pkl').read_bytes() == original == (baseline/'P32.pkl').read_bytes()
+    assert (baseline/'training/state_000005').exists()
+    assert json.loads((root/'retry-1-reload-P56.json').read_text())['status'] == 'VERIFIED'
+    result = run_suite(root, tmp_path/'evaluation', workers=1,max_seconds=240,smoke=True,opponent='check_call')
+    assert result['status'] == 'COMPLETE'
+    assert result['primary'] == 'P56-vs-P32'
+    assert list(result['head_to_head']) == ['P56-vs-P32','P38-vs-P32','P44-vs-P38','P50-vs-P44','P56-vs-P50']
+    assert set(result['fo2']['estimates']) == set(labels)
+    assert set(result['fo2']['improvements']) == set(labels[1:])
+    design=json.loads((tmp_path/'evaluation/design.json').read_text())
+    assert design['head_to_head_pilot_seeds'] == [52301,52311,52321,52331,52341]
+    assert design['fo2_pilot_seed'] == 53501
+    text=(tmp_path/'evaluation/continuation_report.md').read_text()
+    assert 'Primary: P56 vs P32' in text and 'P8' not in text
+
+
+def test_cloud_chaining_uses_original_trainer_archive(continued,tmp_path,monkeypatch):
+    import shutil
+    from hulhe_escher import continuation_cloud as cloud
+    _,archived,baseline=continued
+    calls=[]
+    def storage(*args):
+        calls.append(args)
+        if args[0]=='cp':
+            name=args[1].removeprefix('gs://test/source/')
+            src=baseline.parent/'source.tar.gz' if name=='training_source.tar.gz' else baseline/name
+            shutil.copy2(src,args[2])
+        else:
+            assert args[:2]==('rsync','--recursive')
+            shutil.copytree(baseline/'training/state_000005',args[-1],dirs_exist_ok=True)
+    monkeypatch.setattr(cloud,'storage',storage)
+    marker=json.loads((baseline/'P32.json').read_text())
+    source,trainer=cloud.download_source('gs://test/source',tmp_path/'download',marker['sha256'],32)
+    assert (source/'P32.pkl').read_bytes()==(baseline/'P32.pkl').read_bytes()
+    assert (trainer/'hulhe_escher/train.py').read_bytes()==(archived/'hulhe_escher/train.py').read_bytes()
+    assert any(args[1]=='gs://test/source/training_source.tar.gz' for args in calls)
+    assert not any(args[1]=='gs://test/source/source.tar.gz' for args in calls)
+    with pytest.raises(ValueError,match='requested baseline'):
+        cloud.download_source('gs://test/source',tmp_path/'wrong','0'*64,32)
+
+
+@pytest.mark.parametrize('hours', [0,14,31,True,32.0])
+def test_invalid_baseline_rejected(hours):
+    from hulhe_escher.continuation import checkpoint_labels
+    with pytest.raises(ValueError,match='Baseline hours'):
+        checkpoint_labels(hours)

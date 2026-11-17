@@ -12,14 +12,17 @@ from launch_learning_check import source_archive
 
 
 def build_bundle(output, *, project, zone, bucket, service_account, run_name,
-                 source_uri, expected_p8_sha256):
+                 source_uri, expected_p8_sha256, baseline_hours=8):
+    if isinstance(baseline_hours, bool) or not isinstance(baseline_hours, int) or baseline_hours < 8 or (baseline_hours-8) % 24:
+        raise ValueError('Baseline hours must be 8 plus a whole number of 24-hour continuations')
+    labels=[f'P{baseline_hours+6*i}' for i in range(5)]
     if not re.fullmatch(r'[a-z][a-z0-9-]{0,45}[a-z0-9]',run_name):
         raise ValueError('Invalid run name')
     for uri in (bucket,source_uri):
         if not re.fullmatch(r'gs://[a-z0-9][a-z0-9._-]+(?:/[a-zA-Z0-9_./-]+)?',uri):
             raise ValueError('Invalid Cloud Storage URI')
     if not re.fullmatch(r'[a-f0-9]{64}',expected_p8_sha256):
-        raise ValueError('Expected P8 SHA-256 is required')
+        raise ValueError('Expected baseline SHA-256 is required')
     output=Path(output).resolve()
     output.mkdir(parents=True,exist_ok=False)
     uri=bucket.rstrip('/')+'/'+run_name
@@ -30,7 +33,7 @@ def build_bundle(output, *, project, zone, bucket, service_account, run_name,
     digest=hashlib.sha256((output/'source.tar.gz').read_bytes()).hexdigest()
     command=['/opt/hulhe/venv/bin/python','-m','hulhe_escher.continuation_cloud',
         '--workspace','/var/lib/hulhe-continuation','--source-uri',source_uri,'--output-uri',uri,
-        '--expected-p8-sha256',expected_p8_sha256]
+        '--expected-baseline-sha256',expected_p8_sha256,'--baseline-hours',str(baseline_hours)]
     script=output/'startup.sh'
     script.write_text('\n'.join(['#!/bin/bash','set -euo pipefail',
         'export DEBIAN_FRONTEND=noninteractive',
@@ -57,12 +60,12 @@ def build_bundle(output, *, project, zone, bucket, service_account, run_name,
          '--max-run-duration','44h','--instance-termination-action','STOP',
          '--labels','purpose=hulhe-continuation']]
     plan=dict(uri=uri,source_uri=source_uri,baseline_sha256=expected_p8_sha256,
-        additional_active_hours=24,stage_hours=6,labels=['P8','P14','P20','P26','P32'],
+        additional_active_hours=24,stage_hours=6,baseline_hours=baseline_hours,labels=labels,
         machine='c4-standard-16',collection_workers=8,training_threads=8,
         training_wall_budget_hours=30,evaluation_wall_budget_hours=12,vm_max_hours=44,
         evaluation='Sequentially after training and successful final reload, on the same VM; eight evaluation workers',
-        primary='P32 vs P8, alpha 0.05',secondary='Four adjacent head-to-head and four paired FO2 changes vs P8, alpha 0.05/8 each',
-        recovery='Full state every six active hours; original P8 preserved; newest continuation recovery retained',
+        primary=f'{labels[-1]} vs {labels[0]}, alpha 0.05',secondary=f'Four adjacent head-to-head and four paired FO2 changes vs {labels[0]}, alpha 0.05/8 each',
+        recovery=f'Full state every six active hours; original {labels[0]} preserved; newest continuation recovery retained',
         shutdown='Automatic on exit. Stopped boot disk remains billable until explicitly deleted.',
         source_sha256=digest,commands=commands)
     (output/'launch.json').write_text(json.dumps(plan,indent=2)+'\n')
@@ -77,7 +80,8 @@ def main():
     p.add_argument('--service-account',required=True)
     p.add_argument('--run-name',required=True)
     p.add_argument('--source-uri',required=True)
-    p.add_argument('--expected-p8-sha256',required=True)
+    p.add_argument('--expected-baseline-sha256','--expected-p8-sha256',dest='expected_p8_sha256',required=True)
+    p.add_argument('--baseline-hours',type=int,default=8)
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--execute',action='store_true')
     args=vars(p.parse_args());execute=args.pop('execute')

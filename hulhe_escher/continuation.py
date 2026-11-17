@@ -18,7 +18,13 @@ from .experiment import publish_policy, upload_checkpoint
 from .experiment_runtime import run_child
 from .train import write_json
 
-LABELS = ('P8', 'P14', 'P20', 'P26', 'P32')
+def checkpoint_labels(baseline_hours=8):
+    if isinstance(baseline_hours, bool) or not isinstance(baseline_hours, int) or baseline_hours < 8 or (baseline_hours-8) % 24:
+        raise ValueError('Baseline hours must be 8 plus a whole number of 24-hour continuations')
+    return tuple(f'P{baseline_hours+6*i}' for i in range(5))
+
+
+LABELS = checkpoint_labels()
 
 
 def checked_pointer(training):
@@ -47,20 +53,20 @@ def trainer_command(training, contract, seconds):
     return command
 
 
-def resume_record(root, contract, baseline, label, expected_sha256, stage_seconds):
+def resume_record(root, contract, baseline, label, expected_sha256, stage_seconds, labels=LABELS):
     """Accept only a completed stage boundary, never a partly trained stage."""
-    if label not in LABELS[1:] or not re.fullmatch('[a-f0-9]{64}', expected_sha256 or ''):
+    if label not in labels[1:] or not re.fullmatch('[a-f0-9]{64}', expected_sha256 or ''):
         raise ValueError('Resume requires a named stage and expected policy SHA-256')
     report = json.loads((root / 'continuation.json').read_text())
-    index = LABELS.index(label)
-    if report['status'] != 'FAILED' or set(report['checkpoints']) != set(LABELS[:index+1]):
+    index = labels.index(label)
+    if report['status'] != 'FAILED' or set(report['checkpoints']) != set(labels[:index+1]):
         raise ValueError('Resume requires a failed run at the requested completed stage')
     if (report['stage_seconds'] != stage_seconds or report['additional_active_seconds'] != 4*stage_seconds or
         report['training_source_fingerprint'] != contract['source_fingerprint'] or
-        report['smoke'] != contract['smoke'] or report['checkpoints']['P8'] != baseline or
+        report['smoke'] != contract['smoke'] or report['checkpoints'][labels[0]] != baseline or
         json.loads((root / 'training/manifest.json').read_text()) != contract):
         raise ValueError('Resume contract or original baseline differs')
-    for name in LABELS[:index+1]:
+    for name in labels[:index+1]:
         record = json.loads((root / f'{name}.json').read_text())
         if record != report['checkpoints'][name] or sha256_file(root / f'{name}.pkl') != record['sha256']:
             raise ValueError('Saved policy identity differs from failed run record')
@@ -77,22 +83,26 @@ def resume_record(root, contract, baseline, label, expected_sha256, stage_second
 
 def run_continuation(source_run, trainer_source, output, *, stage_seconds=21600.,
                      wall_seconds=108000., upload_uri=None, allow_smoke=False,
-                     resume_checkpoint=None, expected_resume_sha256=None):
+                     resume_checkpoint=None, expected_resume_sha256=None, baseline_hours=8):
     if not all(math.isfinite(x) and x > 0 for x in (stage_seconds, wall_seconds)):
         raise ValueError('Time budgets must be positive and finite')
+    labels = checkpoint_labels(baseline_hours)
+    baseline = labels[0]
+    if not allow_smoke and stage_seconds != 21600:
+        raise ValueError('Production checkpoints require six-hour stages')
     source, trainer, root = map(lambda p: Path(p).resolve(), (source_run, trainer_source, output))
     if root == source or source in root.parents or root in source.parents:
         raise ValueError('Use a separate output directory; preserve the original recovery')
     contract = json.loads((source / 'training/manifest.json').read_text())
-    marker = json.loads((source / 'P8.json').read_text())
+    marker = json.loads((source / f'{baseline}.json').read_text())
     pointer = checked_pointer(source / 'training')
-    if marker['recovery'] != pointer['state'] or marker['outer_iteration'] != pointer['iteration']:
-        raise ValueError('P8 is not the latest full recovery')
-    if sha256_file(source / 'P8.pkl') != marker['sha256']:
-        raise ValueError('P8 policy hash mismatch')
-    payload = load_checkpoint_payload(source / 'P8.pkl')
+    if marker['label'] != baseline or marker['recovery'] != pointer['state'] or marker['outer_iteration'] != pointer['iteration']:
+        raise ValueError(f'{baseline} is not the latest full recovery')
+    if sha256_file(source / f'{baseline}.pkl') != marker['sha256']:
+        raise ValueError(f'{baseline} policy hash mismatch')
+    payload = load_checkpoint_payload(source / f'{baseline}.pkl')
     if payload['outer_iteration'] != pointer['iteration'] or payload['training_elapsed_seconds'] != marker['active_seconds']:
-        raise ValueError('P8 policy and publication marker differ')
+        raise ValueError(f'{baseline} policy and publication marker differ')
     if bool(contract['smoke']) != bool(marker.get('smoke', False)):
         raise ValueError('Inconsistent smoke metadata')
     if contract['smoke'] and not allow_smoke:
@@ -100,7 +110,7 @@ def run_continuation(source_run, trainer_source, output, *, stage_seconds=21600.
     completed, log_prefix = 0, ''
     if resume_checkpoint:
         report, completed = resume_record(root, contract, marker, resume_checkpoint,
-                                         expected_resume_sha256, stage_seconds)
+                                         expected_resume_sha256, stage_seconds, labels)
         attempt = len(report.get('resume_attempts', [])) + 1
         log_prefix = f'retry-{attempt}-'
         # Keep the previous failure and all completed-stage logs for audit.
@@ -121,7 +131,8 @@ def run_continuation(source_run, trainer_source, output, *, stage_seconds=21600.
         report = dict(status='PREPARING', source_run=str(source), trainer_source=str(trainer),
                       training_source_fingerprint=contract['source_fingerprint'],
                       stage_seconds=stage_seconds, additional_active_seconds=4*stage_seconds,
-                      smoke=contract['smoke'], checkpoints={'P8': marker}, stages={})
+                      smoke=contract['smoke'], baseline_hours=baseline_hours, labels=list(labels),
+                      checkpoints={baseline: marker}, stages={})
     write_json(root / 'continuation.json', report)
     started = time.monotonic()
     deadline = started + wall_seconds
@@ -146,9 +157,9 @@ def run_continuation(source_run, trainer_source, output, *, stage_seconds=21600.
             shutil.copy2(source / 'training/latest.json', training / 'latest.json')
             shutil.copytree(source / 'training' / pointer['state'], training / pointer['state'])
             for suffix in ('pkl', 'json'):
-                shutil.copy2(source / f'P8.{suffix}', root / f'P8.{suffix}')
+                shutil.copy2(source / f'{baseline}.{suffix}', root / f'{baseline}.{suffix}')
         write_json(training / 'continuation-config.json', contract['config'])
-        restored = resume_checkpoint or 'P8'
+        restored = resume_checkpoint or baseline
         verify(restored)  # Every shard checksum; actual solver, optimizers and actor restore.
         if resume_checkpoint:
             report['resume_recovery_verified'] = True
@@ -157,7 +168,7 @@ def run_continuation(source_run, trainer_source, output, *, stage_seconds=21600.
             # Repair publication BEFORE new updates can prune the retained state.
             upload_checkpoint(root, upload_uri, restored)
         previous = report['checkpoints'][restored]['active_seconds']
-        for index, label in enumerate(LABELS[1:], 1):
+        for index, label in enumerate(labels[1:], 1):
             if index <= completed:
                 continue
             report.update(status='TRAINING', current_stage=label)
@@ -179,7 +190,7 @@ def run_continuation(source_run, trainer_source, output, *, stage_seconds=21600.
             if outcome['returncode'] != 0:
                 raise RuntimeError(f'Training {label} failed; see stage log')
             record = publish_policy(training, root, label)
-            if record['active_seconds'] < target or record['outer_iteration'] <= report['checkpoints'][LABELS[index-1]]['outer_iteration']:
+            if record['active_seconds'] < target or record['outer_iteration'] <= report['checkpoints'][labels[index-1]]['outer_iteration']:
                 raise RuntimeError('Training stage did not reach its target')
             record['target_active_seconds'] = target
             write_json(root / f'{label}.json', record)
@@ -190,7 +201,7 @@ def run_continuation(source_run, trainer_source, output, *, stage_seconds=21600.
             write_json(root / 'continuation.json', report)
         report['status'] = 'VERIFYING_FINAL_RECOVERY'
         write_json(root / 'continuation.json', report)
-        verify('P32')
+        verify(labels[-1])
         report['status'] = 'TRAINING_COMPLETE'
         report['final_recovery_verified'] = True
     except Exception as exc:
@@ -211,7 +222,8 @@ def main():
     p.add_argument('--wall-seconds', type=float, default=108000)
     p.add_argument('--upload-uri')
     p.add_argument('--allow-smoke', action='store_true')
-    p.add_argument('--resume-checkpoint', choices=LABELS[1:])
+    p.add_argument('--baseline-hours', type=int, default=8)
+    p.add_argument('--resume-checkpoint')
     p.add_argument('--expected-resume-sha256')
     run_continuation(**vars(p.parse_args()))
 

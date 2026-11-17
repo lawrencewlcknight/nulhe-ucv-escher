@@ -306,3 +306,44 @@ rejects an intermediate recovery that has no matching completed policy. Previous
 failure reports and stage logs are retained under numbered retry names. Deploy
 the updated coordinator/uploader separately from the immutable archived trainer;
 do not change the archived training source or bypass its resume contract.
+
+### Continue P32 to P56 (and subsequent 24-hour blocks)
+
+Pass `--baseline-hours 32` to start from P32 and export P38, P44, P50 and
+P56. The primary comparison becomes P56/P32; the four adjacent comparisons and
+four FO2 improvements all use the shifted labels and P32 baseline. The statistical
+design, VM size, worker counts, training settings and active-time budget stay the
+same. Evaluation uses a fresh deterministic seed block for each continuation.
+P32 is evaluated again on those fresh deals alongside the four new policies.
+
+For baselines after P8, the downloader uses `training_source.tar.gz` from the
+previous run, **not** its coordinator `source.tar.gz`. The original trainer and
+full recovery contract remain unchanged through every generation. The old
+experiment stays intact in its own cloud prefix. The baseline SHA-256 must match
+the named policy, which must also match the latest full recovery pointer. Before
+training, the complete state is checksum-verified and restored in a fresh solver;
+the same check runs on the final P56 recovery.
+
+```bash
+python3 tools/launch_continuation.py \
+  --project clever-overview-399515 --zone europe-west1-b \
+  --bucket gs://clever-overview-399515-fhp-escher-results/hulhe \
+  --service-account fhp-escher-runner@clever-overview-399515.iam.gserviceaccount.com \
+  --source-uri gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-plus24-20261116-063535 \
+  --baseline-hours 32 \
+  --expected-baseline-sha256 9783cb191b46e22f759d7fe8215f342e4611ffbe05ad670525f057690d25a01b \
+  --run-name hulhe-p32-plus24-UNIQUE-TIMESTAMP \
+  --output outputs/cloud-hulhe-p32-plus24-UNIQUE-TIMESTAMP \
+  --execute
+```
+
+Omit `--execute` to prepare a launch without creating a VM. The old
+`--expected-p8-sha256` option remains an alias for compatibility. Future blocks use
+`--baseline-hours 56`, then `80`, etc., with the corresponding source run and hash.
+When retrying a failed stage, retain `--baseline-hours 32` and use the actual
+completed checkpoint, for example `--resume-checkpoint P38`.
+
+For compact analytical downloads, copy just `continuation.json`,
+`evaluation/continuation_report.md`, `evaluation/report.json` and
+`evaluation/design.json`. Bulk recursive downloads also include large hand
+journals and training logs.
