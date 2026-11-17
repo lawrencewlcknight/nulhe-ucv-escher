@@ -71,6 +71,11 @@ shared package names (`unbiased_escher`, `adaptive_escher`, `vr_deep_cfr`) overl
 
 ## Continue training from a checkpoint
 
+To test policy sampling without another self-play run, see the
+[frozen-replay sampler experiment](docs/POLICY_SAMPLER_EXPERIMENT.md). It compares
+matched refits of saved policy replay and evaluates them against each other and
+Fell Omen 2; the production default is unchanged.
+
 Full recovery checkpoints support continued training. Re-run the original
 training command with the same output directory and options, add `--resume`, and
 set `--iterations` to the desired **total** iteration count. For example, after

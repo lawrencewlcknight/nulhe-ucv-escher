@@ -27,6 +27,7 @@ def test_only_game_size_and_representation_change_the_baseline():
         for path, other_path in (
             ("unbiased_escher/replay_grouping.py", "unbiased_escher/replay_grouping.py"),
             ("unbiased_escher/holdem_fitting.py", "unbiased_escher/holdem_fitting.py"),
+            ("unbiased_escher/policy_sampling.py", "unbiased_escher/policy_sampling.py"),
             (f"{tag}_escher/optimization.py", f"{other_tag}_escher/optimization.py"),
             (f"{tag}_escher/checkpoint_schedule.py", f"{other_tag}_escher/checkpoint_schedule.py"),
             (f"{tag}_escher/recovery_retention.py", f"{other_tag}_escher/recovery_retention.py"),
