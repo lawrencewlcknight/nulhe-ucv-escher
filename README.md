@@ -352,3 +352,9 @@ For compact analytical downloads, copy just `continuation.json`,
 `evaluation/continuation_report.md`, `evaluation/report.json` and
 `evaluation/design.json`. Bulk recursive downloads also include large hand
 journals and training logs.
+
+For the isolated P32 policy-capacity and upstream-target investigation, see
+[the bottleneck investigation](docs/BOTTLENECK_INVESTIGATION.md). It compares six
+frozen-replay refits, instruments one restored iteration and evaluates one
+validation-selected policy on fresh paired deals. Its Google Batch launcher uses
+one c4-standard-16 task, a four-hour emergency limit and automatic VM/disk cleanup.

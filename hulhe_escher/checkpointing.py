@@ -146,6 +146,13 @@ class LoadedHULHEPolicy(policy.Policy):
                 int(model_metadata["output_size"]),
                 branch_width=int(model_metadata["branch_width"]),
             )
+        elif model_metadata.get("type") == "hulhe_diagnostic_residual_v1":
+            from .diagnostic_model import ResidualPolicy
+            if (self.feature_encoder is None or model_metadata["layout"] !=
+                    self.feature_encoder.policy_layout.to_dict() or model_metadata["output_size"] != 3):
+                raise ValueError("Diagnostic residual layout differs from its encoder")
+            self.model = ResidualPolicy(self.feature_encoder.policy_layout,
+                **{k: int(model_metadata[k]) for k in ("width", "blocks", "head", "branch_width")})
         else:
             raise ValueError(f"Unsupported checkpoint policy model: {model_metadata!r}")
         self.model.load_state_dict(self.checkpoint["policy_state_dict"])
