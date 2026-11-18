@@ -358,3 +358,11 @@ For the isolated P32 policy-capacity and upstream-target investigation, see
 frozen-replay refits, instruments one restored iteration and evaluates one
 validation-selected policy on fresh paired deals. Its Google Batch launcher uses
 one c4-standard-16 task, a four-hour emergency limit and automatic VM/disk cleanup.
+
+For lightweight strategic-position evaluation, see the
+[Limit Hold’em strategic audit](docs/STRATEGIC_AUDIT.md). It compares playable
+policies on a frozen development/assessment library, computes exact river
+response gaps and provable dominated folds, and checks hidden-card privacy and
+suit invariance. Preflop/flop/turn action diagnostics are reported separately.
+Run `python -m hulhe_escher.strategic_audit run --baseline uniform --smoke
+--output outputs/strategic-smoke` for an offline smoke check.
