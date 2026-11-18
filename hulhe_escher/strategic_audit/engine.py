@@ -141,7 +141,14 @@ def river_audit(space, candidate, opponent='value', weights=None, deadline=lambd
         actor = state.current_player()
         legal = state.legal_actions()
         q, brq = [], []
-        opp = opponent_probabilities(opponent,state,space.strength,spent) if actor != hero else None
+        opp = ((opponent(state) if callable(opponent) else
+                opponent_probabilities(opponent,state,space.strength,spent)) if actor != hero else None)
+        if opp is not None:
+            opp = np.asarray(opp, dtype=np.float64)
+            if (opp.shape != (len(space.hands), 3) or not np.isfinite(opp).all()
+                    or (opp < 0).any() or not np.allclose(opp.sum(1), 1, atol=1e-6)
+                    or np.any(opp[:, [a for a in range(3) if a not in legal]] != 0)):
+                raise ValueError('Invalid conditional opponent probabilities')
         for action in legal:
             branch = reach if actor == hero else reach*opp[:,action]
             child = state.child(action)

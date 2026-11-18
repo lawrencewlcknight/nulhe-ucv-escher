@@ -12,7 +12,7 @@ import sys
 import time
 
 
-def run(source, state, contract, policy, output):
+def run(source, state, contract, policy, output, *, before_iteration=None, after_iteration=None):
     sys.path.insert(0,str(Path(source).resolve()))
     from importlib.metadata import version
     import numpy as np
@@ -83,6 +83,8 @@ def run(source, state, contract, policy, output):
         if solver.num_iteration!=saved['outer_iteration'] or any(not torch.equal(v.cpu(),saved['policy_state_dict'][k]) for k,v in solver.ave_policy_trainer.model.state_dict().items()):
             raise ValueError('Restored solver and P32 export differ')
         report.update(source_iteration=solver.num_iteration,restore_seconds=time.monotonic()-started,status='ITERATING')
+        if before_iteration is not None:
+            before_iteration(solver)
         # Releasing restored mmap metadata reduces resident working set pressure.
         del payload
         old_collect=solver.collect_training_data
@@ -123,6 +125,8 @@ def run(source, state, contract, policy, output):
         report.update(status='COMPLETE',iteration=solver.num_iteration,iteration_seconds=time.monotonic()-tick,
             diagnostic_capture_seconds=diagnostic_seconds,architecture_statistics=dict(solver._architecture_stats),
             minimum_sampling_probability=solver._minimum_sample_probability)
+        if after_iteration is not None:
+            after_iteration(solver)
         report['root_control_variance']=root_control_variance(solver)
     except BaseException as exc:
         report.update(status='FAILED',error=f'{type(exc).__name__}: {exc}'); raise

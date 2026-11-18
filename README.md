@@ -366,3 +366,9 @@ response gaps and provable dominated folds, and checks hidden-card privacy and
 suit invariance. Preflop/flop/turn action diagnostics are reported separately.
 Run `python -m hulhe_escher.strategic_audit run --baseline uniform --smoke
 --output outputs/strategic-smoke` for an offline smoke check.
+
+For a Google Batch investigation of common decisions, replay coverage,
+generalization and local regret estimates, see
+[the P32 position investigation](docs/POSITION_INVESTIGATION.md). It freezes a
+visitation-based benchmark from P32 self-play and Fell Omen 2 encounters, audits
+history-conditioned river values, and instruments one isolated training iteration.
