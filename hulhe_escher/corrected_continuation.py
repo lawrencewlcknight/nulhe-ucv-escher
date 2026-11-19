@@ -20,6 +20,7 @@ from .experiment_runtime import run_child
 from .train import write_json
 
 P32_SOURCE = "fa4f727456f265d52a75f7f06c9e53fdd3d65a3da6640fa5c141e9cad851dca1"
+CORRECTED_SOURCE = "3d66b26f5a914c192effdc0ee591b9c4314513f797422ea8c677efc3b53d6737"
 LEGACY_FITTING_SHA256 = "37b716e89eeeac823223e9d430945767ebbe9df0541611d983e96293114985c3"
 PACKAGES = ("hulhe_escher", "unbiased_escher", "adaptive_escher", "vr_deep_cfr")
 
@@ -32,6 +33,18 @@ def fingerprint(root):
                 digest.update(str(path.relative_to(root)).encode())
                 digest.update(path.read_bytes())
     return digest.hexdigest()
+
+
+def verify_corrected_source(source, trainer):
+    """Require the audited production sampler without patching a second time."""
+    source = Path(source)
+    contract = json.loads((source / "training/manifest.json").read_text())
+    if contract["source_fingerprint"] != CORRECTED_SOURCE or fingerprint(trainer) != CORRECTED_SOURCE:
+        raise ValueError("Archived trainer is not the audited objective_mass trainer")
+    if contract["smoke"] or contract["workers"] != 8 or contract["threads"] != 8 or contract["seed"] != 20261115:
+        raise ValueError("Corrected continuation requires the original production contract")
+    return dict(status="VERIFIED", policy_group_sampling="objective_mass",
+                training_source_fingerprint=CORRECTED_SOURCE, source_modified=False)
 
 
 def replace_once(text, before, after):

@@ -83,7 +83,8 @@ def resume_record(root, contract, baseline, label, expected_sha256, stage_second
 
 def run_continuation(source_run, trainer_source, output, *, stage_seconds=21600.,
                      wall_seconds=108000., upload_uri=None, allow_smoke=False,
-                     resume_checkpoint=None, expected_resume_sha256=None, baseline_hours=8):
+                     resume_checkpoint=None, expected_resume_sha256=None, baseline_hours=8,
+                     require_objective_mass=False):
     if not all(math.isfinite(x) and x > 0 for x in (stage_seconds, wall_seconds)):
         raise ValueError('Time budgets must be positive and finite')
     labels = checkpoint_labels(baseline_hours)
@@ -190,6 +191,8 @@ def run_continuation(source_run, trainer_source, output, *, stage_seconds=21600.
             if outcome['returncode'] != 0:
                 raise RuntimeError(f'Training {label} failed; see stage log')
             record = publish_policy(training, root, label)
+            if require_objective_mass and record['metrics'].get('policy_validation', {}).get('group_sampling') != 'objective_mass':
+                raise RuntimeError('Exported policy did not use required objective_mass sampling')
             if record['active_seconds'] < target or record['outer_iteration'] <= report['checkpoints'][labels[index-1]]['outer_iteration']:
                 raise RuntimeError('Training stage did not reach its target')
             record['target_active_seconds'] = target

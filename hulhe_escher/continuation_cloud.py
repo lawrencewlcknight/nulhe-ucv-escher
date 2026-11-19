@@ -57,7 +57,8 @@ def download_source(uri, workspace, expected_p8_sha256, baseline_hours=8):
 
 def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
               resume_checkpoint=None, expected_resume_sha256=None,
-              training_wall_seconds=108000, baseline_hours=8, corrected_sampler=False):
+              training_wall_seconds=108000, baseline_hours=8, corrected_sampler=False,
+              require_corrected_sampler=False):
     baseline = checkpoint_labels(baseline_hours)[0]
     archive = "source.tar.gz" if baseline_hours == 8 else "training_source.tar.gz"
     # Avoid overwriting or pruning any part of the original experiment.
@@ -67,6 +68,8 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
     root=Path(workspace)
     if corrected_sampler and (baseline_hours != 32 or resume_checkpoint):
         raise ValueError('Sampler migration requires a fresh P32 continuation')
+    if corrected_sampler and require_corrected_sampler:
+        raise ValueError('Select migration or verification of an already corrected trainer')
     if resume_checkpoint:
         source, trainer = root/'original-run', root/'archived-trainer'
         if sha256_file(source/f'{baseline}.pkl') != expected_p8_sha256:
@@ -81,6 +84,11 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
         source,trainer=prepare_corrected_source(source,trainer,root)
         for name in ('sampler-migration.json', 'original-P32-verified.json', 'original-P32-verify.log'):
             storage('cp','--if-generation-match=0',root/name,output_uri+'/'+name)
+    if require_corrected_sampler:
+        from .corrected_continuation import verify_corrected_source
+        receipt = verify_corrected_source(source, trainer)
+        write_json(root/'sampler-verification.json', receipt)
+        storage('cp', root/'sampler-verification.json', output_uri+'/sampler-verification.json')
     # The resumable state belongs to this archived trainer, not to the new
     # coordinator source.tar.gz. Publish it explicitly for future continuations.
     if not resume_checkpoint:
@@ -110,10 +118,11 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
         assets=prepare(root/'fo2-assets')
         report=run_continuation(source,trainer,output,upload_uri=output_uri,
             resume_checkpoint=resume_checkpoint, expected_resume_sha256=expected_resume_sha256,
-            wall_seconds=training_wall_seconds, baseline_hours=baseline_hours)
+            wall_seconds=training_wall_seconds, baseline_hours=baseline_hours,
+            require_objective_mass=corrected_sampler or require_corrected_sampler)
         write_json(output/'provenance.json',dict(source_uri=source_uri,output_uri=output_uri,
             baseline=baseline,expected_baseline_sha256=expected_p8_sha256,original_source_sha256=original_archive_sha256,
-            policy_group_sampling='objective_mass' if corrected_sampler else 'archived_trainer',
+            policy_group_sampling='objective_mass' if corrected_sampler or require_corrected_sampler else 'archived_trainer',
             training_source_fingerprint=report['training_source_fingerprint'],
             fo2_build_fingerprint=assets['fingerprint']))
         write_json(output/'resume.json',dict(training_source_archive=output_uri+'/training_source.tar.gz',
@@ -144,6 +153,8 @@ def main():
     p.add_argument('--expected-resume-sha256')
     p.add_argument('--training-wall-seconds', type=float, default=108000)
     p.add_argument('--corrected-sampler', action='store_true')
+    p.add_argument('--require-corrected-sampler', action='store_true',
+                   help='Verify the already corrected archived trainer; do not migrate it again')
     run_cloud(**vars(p.parse_args()))
 
 

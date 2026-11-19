@@ -314,6 +314,12 @@ do not change the archived training source or bypass its resume contract.
 
 ### Continue P32 to P56 (and subsequent 24-hour blocks)
 
+For the prepared **P56→P80 Google Batch experiment**, including verification of
+the inherited objective-mass policy sampler, use the
+[P56 continuation guide](docs/P56_CONTINUATION.md). Its launcher pins the completed
+P56 checkpoint and runs the six-hour comparisons and Fell Omen 2 benchmark.
+The commands below describe the older standalone-VM workflow.
+
 Pass `--baseline-hours 32` to start from P32 and export P38, P44, P50 and
 P56. The primary comparison becomes P56/P32; the four adjacent comparisons and
 four FO2 improvements all use the shifted labels and P32 baseline. The statistical
