@@ -17,14 +17,18 @@ def render(root):
     regression=read('regression/summary.json')
     stages={k:v.get('status','MISSING') for k,v in
             [('encounters',encounters),('analysis',audit),('upstream',probes),('iteration',iteration),('regression',regression)]}
-    complete=all(s=='COMPLETE' for s in stages.values())
     cloud=read('cloud_status.json')
+    comparison=read('comparison/report.json')
+    if cloud.get('comparison_requested'):
+        stages['comparison']=comparison['status']
+    complete=all(s=='COMPLETE' for s in stages.values())
+    label=cloud.get('checkpoint_label',audit.get('checkpoint_label','P32'))
     rows=probes.get('positions',[])
     flags=[dict(id=r['id'],fold=f['fold'],actions=[a for a,b in zip(r['legal'],f['reference_outside_interval']) if b])
         for r in rows for f in r.get('folds',[]) if any(f['reference_outside_interval'])]
     summary=dict(status='FAILED' if cloud.get('status')=='FAILED' or 'FAILED' in stages.values()
                  else 'COMPLETE' if complete else 'INCOMPLETE',stages=stages,
-        completed_hands=encounters.get('completed_hands',{}),
+        checkpoint_label=label,completed_hands=encounters.get('completed_hands',{}),
         audited_positions=audit.get('completed_positions',0),
         upstream_supported_positions=sum(r['status']=='COMPLETE' for r in rows),
         upstream_unsupported_positions=sum(r['status']=='UNSUPPORTED' for r in rows),
@@ -34,6 +38,10 @@ def render(root):
             'Low-gap controls and high-gap positions are purposefully selected; no population inference from their comparison.',
             'No new playable policy is selected and no playing-strength improvement is claimed. Assessment remains locked.'])
     if 'reason' in cloud:summary['reason']=cloud['reason']
+    if cloud.get('comparison_requested'):
+        summary['paired_comparison']=dict(status=comparison['status'],
+            completed_positions=comparison.get('completed_positions',0),summaries=comparison.get('summaries',[]),
+            report='comparison/report.md')
     write_json(root/'summary.json',summary)
     lines=['# Limit Hold’em position investigation','',f"Status: **{summary['status']}**",'',
         f"Hands: {summary['completed_hands']}; audited development positions: {summary['audited_positions']}; "
@@ -44,7 +52,7 @@ def render(root):
     for r in summary['ranked_families'][:30]:
         gap='unscored' if r['mean_local_gap_bb'] is None else f"{r['mean_local_gap_bb']:.5f}"
         lines.append(f"| {r['source']} | {r['family']} | {r['encounters']} | {r['audited_positions']} | {r['exact_replay_matches']} | {gap} |")
-    lines += ['', 'These are costs conditional on a frozen P32 opponent and its history-conditioned range. '
+    lines += ['', f'These are costs conditional on a frozen {label} opponent and its history-conditioned range. '
         'The frequency ranking is triage, not an additive estimate of whole-game losses. Earlier streets have no oracle score.',
         '', '## Upstream checks','',f"{len(flags)} position/fold combinations have at least one flagged action interval. "
         'Inspect the reference, uncertainty and support before interpreting these as possible estimator discrepancies.',
@@ -57,6 +65,13 @@ def render(root):
         '- Broad estimator intervals: noisy supervision candidate, not proof of biased supervision.',
         '- Good targets but large actual training residuals: investigate regret fitting; synthetic probe changes alone do not establish this.',
         '', *['- '+s for s in summary['limitations']], '']
+    if cloud.get('comparison_requested'):
+        lines += ['## Paired comparison with P32','',
+            'See comparison/report.md for both policies on identical original P32 development positions, '
+            'with a shared frozen P32 opponent and posterior. Positive gap reductions mean improvement.', '',
+            '| Panel | Positions | Remaining-river gap reduction, bb/decision |', '|---|---:|---:|']
+        for row in comparison.get('summaries',[]):
+            if row['scope']=='all':lines.append(f"| {row['panel']} | {row['positions']} | {row['weighted']['remaining_gap_reduction_bb']:+.6f} |")
     text='\n'.join(lines); (root/'report.md').write_text(text)
     (root/'report.html').write_text('<!doctype html><meta charset="utf-8"><title>Position investigation</title>'
         '<style>body{max-width:1100px;margin:40px auto;font:16px system-ui;padding:20px}pre{white-space:pre-wrap}</style>'

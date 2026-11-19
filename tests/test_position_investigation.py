@@ -287,3 +287,58 @@ def test_cloud_incomplete_is_visible_and_only_results_are_uploaded(tmp_path,monk
     assert all('isolated-source' not in str(t) for t in transfers)
     assert transfers[-1][0]=='cp' and str(transfers[-1][1]).endswith('cloud_status.json')
     with pytest.raises(ValueError):cloud.run_cloud(tmp_path/'bad','gs://bucket/source','gs://bucket/source/child','a'*64)
+
+
+def test_paired_comparison_uses_common_response_and_sign():
+    from hulhe_escher.position_investigation.compare import paired_values
+    p=position();space=RiverSpace(p)
+    a=river_audit(space,UniformPolicy(),'check_call')
+    b=river_audit(space,AlwaysCallPolicy(),'check_call')
+    delta=paired_values(a,b)
+    assert delta['remaining_gap_reduction_bb']==pytest.approx(delta['value_improvement_bb'])
+    assert delta['root_action_improvement_fixed_baseline_continuation_bb']==pytest.approx(delta['value_improvement_bb'])
+    assert paired_values(a,a)['remaining_gap_reduction_bb']==0
+    changed=deepcopy(b);changed['root']['best_response_value_bb']+=1
+    with pytest.raises(ValueError,match='same best-response'):paired_values(a,changed)
+    assert paired_values(a,dict(status='UNSUPPORTED'))==dict(status='UNSUPPORTED')
+
+
+def test_paired_comparison_identity_and_provenance(recovery,tmp_path):
+    from hulhe_escher.position_investigation.compare import run as compare
+    policy=recovery/'policy_000001.pkl';encounters=tmp_path/'encounters'
+    collect(policy,encounters,opponent='check_call',hands=100,workers=1,max_seconds=90,river=8,earlier=12)
+    analyse(recovery/'state_000001',policy,encounters,tmp_path/'original-analysis',max_seconds=120,upstream_positions=2)
+    encounter=json.loads((encounters/'report.json').read_text())
+    kwargs=dict(expected_baseline_sha256=sha256_file(policy),expected_candidate_sha256=sha256_file(policy),
+                expected_library_sha256=encounter['library_sha256'])
+    report=compare(policy,policy,encounters,tmp_path/'comparison',max_seconds=120,
+                   baseline_analysis=tmp_path/'original-analysis/report.json',**kwargs)
+    assert report['status']=='COMPLETE' and report['completed_positions']==encounter['development']
+    assert all(r['position']['partition']=='development' for r in report['positions'])
+    assert report['summaries']
+    assert report['baseline_reproduction_max_abs_error']<1e-10
+    for row in report['summaries']:
+        assert row['weighted']['remaining_gap_reduction_bb']==0
+        assert row['weighted']['root_action_improvement_fixed_baseline_continuation_bb']==0
+        assert row['improved']==row['regressed']==0
+    kwargs['expected_library_sha256']='0'*64
+    with pytest.raises(ValueError,match='provenance'):
+        compare(policy,policy,encounters,tmp_path/'changed',**kwargs)
+    assert json.loads((tmp_path/'changed/report.json').read_text())['status']=='FAILED'
+
+
+def test_p56_position_launcher_pins_comparison(tmp_path):
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
+    import launch_position_investigation as launcher
+    kwargs=dict(project='test',bucket='gs://test-bucket/hulhe',service_account='runner@test',
+        run_name='hulhe-positions-p56-test',source_uri='gs://test-bucket/p56',
+        expected_policy_sha256='a'*64,iteration=1943,checkpoint_label='P56',
+        comparison_uri='gs://test-bucket/old-positions',comparison_policy_uri='gs://test-bucket/p32/policy.pkl',
+        comparison_policy_sha256='b'*64,comparison_library_sha256='c'*64)
+    plan=launcher.build_bundle(tmp_path/'bundle',**kwargs)
+    job=json.loads((tmp_path/'bundle/job.json').read_text())
+    assert job['labels']['checkpoint']=='p56' and plan['iteration']==1943
+    script=(tmp_path/'bundle/batch.sh').read_text()
+    assert '--checkpoint-label P56' in script and '--comparison-library-sha256 '+('c'*64) in script
+    kwargs['comparison_library_sha256']=None
+    with pytest.raises(ValueError,match='Comparison requires'):launcher.build_bundle(tmp_path/'invalid',**kwargs)

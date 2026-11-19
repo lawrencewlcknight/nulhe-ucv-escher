@@ -90,11 +90,13 @@ def summarize(rows,encounters):
     return sorted(result,key=lambda r:r['prioritization_score'] if r['prioritization_score'] is not None else -1,reverse=True)
 
 
-def run(state,policy,encounters,output,*,max_seconds=3000,threads=1,unlock_assessment=False,upstream_positions=24):
+def run(state,policy,encounters,output,*,max_seconds=3000,threads=1,unlock_assessment=False,upstream_positions=24,checkpoint_label='P32'):
     torch.set_num_threads(threads)
     output=Path(output); output.mkdir(parents=True,exist_ok=False)
     check=deadline_after(max_seconds); started=time.monotonic()
-    report=dict(status='ANALYSING',positions=[],
+    report=dict(status='ANALYSING',positions=[],checkpoint_label=checkpoint_label,
+        learned_opponent_label=checkpoint_label,
+        legacy_field_note='p32_opponent and regret_against_p32 refer to the source checkpoint identified by learned_opponent_label and source_policy_sha256.',
         partition='assessment' if unlock_assessment else 'development',
         limitations=['Conditional fixed-opponent response gaps are not equilibrium errors or exploitability.',
             'Missing retained replay is not proof a state was never visited; family matches are not substitute targets.',
@@ -157,7 +159,7 @@ def run(state,policy,encounters,output,*,max_seconds=3000,threads=1,unlock_asses
             selected=select_upstream(report['positions'],upstream_positions)
             write_json(output/'upstream_positions.json',dict(positions=selected,library_sha256=digest(library),
                 source_policy_sha256=report['source_policy_sha256'],source_manifest_sha256=report['source_manifest_sha256'],
-                selection='Half largest P32 conditional gaps, half smallest controls; development only, frozen before traversal checks'))
+                selection=f'Half largest {checkpoint_label} conditional gaps, half smallest controls; development only, frozen before traversal checks'))
     except TimeoutError as exc:
         report.update(status='INCOMPLETE',reason=str(exc))
     except BaseException as exc:
@@ -174,6 +176,7 @@ def main():
     for n in ('state','policy','encounters','output'): p.add_argument('--'+n,type=Path,required=True)
     p.add_argument('--threads',type=int,default=1); p.add_argument('--max-seconds',type=int,default=3000)
     p.add_argument('--upstream-positions',type=int,default=24); p.add_argument('--unlock-assessment',action='store_true')
+    p.add_argument('--checkpoint-label',default='P32')
     if run(**vars(p.parse_args()))['status']!='COMPLETE': raise SystemExit(2)
 
 if __name__=='__main__': main()
