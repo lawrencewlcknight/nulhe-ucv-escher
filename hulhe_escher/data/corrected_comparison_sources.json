@@ -1,0 +1,25 @@
+{
+  "fit_seeds": [1701, 1702],
+  "files": {
+    "P32-fit.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-sampler-p32-20261117-145836/fit/experiment.json",
+      "sha256": "155cbc7c81c84d71972f5dfa42fafa6a4ec4a64866acefe587691cb2255ef8c8"
+    },
+    "P32-corrected-1701.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-sampler-p32-20261117-145836/fit/objective_mass_seed1701.pkl",
+      "sha256": "87ac87878cf5ca1ab24346f152601824717d860f2cac73a8988599fceccbb120"
+    },
+    "P32-corrected-1702.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-sampler-p32-20261117-145836/fit/objective_mass_seed1702.pkl",
+      "sha256": "1f20b88eea2dc1fbb2d9697d4567eca10cd40b2dd1d0f683676fd83df4ec573b"
+    },
+    "P56.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-p32-plus24-batch-20261118-1105/P56.json",
+      "sha256": "584cc21acec24d9c0bb0eb332ae7d1d90f8146411ea713d2955979f4a8e4383b"
+    },
+    "P56.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-p32-plus24-batch-20261118-1105/P56.pkl",
+      "sha256": "35b5348443678a2738d8ae52b1b313370739be90b1e0c298d3f73afd72adc30e"
+    }
+  }
+}

@@ -378,3 +378,7 @@ generalization and local regret estimates, see
 [the P32 position investigation](docs/POSITION_INVESTIGATION.md). It freezes a
 visitation-based benchmark from P32 self-play and Fell Omen 2 encounters, audits
 history-conditioned river values, and instruments one isolated training iteration.
+
+The [P56 versus corrected P32 comparison](docs/P32_CORRECTED_VS_P56.md) is an
+evaluation-only Google Batch experiment using both saved corrected P32 refits,
+fresh duplicate deals, and a predeclared equal-weight primary comparison.
