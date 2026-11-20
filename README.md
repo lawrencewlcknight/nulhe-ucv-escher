@@ -314,6 +314,11 @@ do not change the archived training source or bypass its resume contract.
 
 ### Continue P32 to P56 (and subsequent 24-hour blocks)
 
+For the **P80→P104 Google Batch experiment**, use the
+[P80 continuation guide](docs/P80_CONTINUATION.md). It restores the verified P80
+full recovery, retains the corrected policy sampler, and exports P86, P92, P98
+and P104 with adjacent comparisons and the Fell Omen 2 benchmark.
+
 For the prepared **P56→P80 Google Batch experiment**, including verification of
 the inherited objective-mass policy sampler, use the
 [P56 continuation guide](docs/P56_CONTINUATION.md). Its launcher pins the completed

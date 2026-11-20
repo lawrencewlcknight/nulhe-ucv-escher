@@ -125,11 +125,39 @@ def test_migration_preserves_all_learning_state_and_continues(tmp_path):
     design = json.loads((tmp_path / "evaluation/design.json").read_text())
     assert design["head_to_head_pilot_seeds"] == [76301, 76311, 76321, 76331, 76341]
     assert design["fo2_pilot_seed"] == 77501
+    # Continue the full P80 recovery, keeping the corrected trainer and source intact.
+    original_p80 = (next_run / "P80.pkl").read_bytes()
+    p80_run = tmp_path / "p80-plus24"
+    uploads.clear()
+    with patch("hulhe_escher.continuation.upload_checkpoint",
+               side_effect=lambda root, uri, label: uploads.append(label)):
+        p80_report = run_continuation(next_run, patched, p80_run, baseline_hours=80,
+            stage_seconds=.001, wall_seconds=180, allow_smoke=True,
+            require_objective_mass=True, upload_uri="gs://test/p80")
+    p80_labels = ["P80", "P86", "P92", "P98", "P104"]
+    assert p80_report["labels"] == p80_labels and p80_report["final_recovery_verified"]
+    assert uploads == p80_labels
+    assert [p80_report["checkpoints"][p]["outer_iteration"] for p in p80_labels] == [9, 10, 11, 12, 13]
+    assert (p80_run / "P80.pkl").read_bytes() == original_p80 == (next_run / "P80.pkl").read_bytes()
+    assert (next_run / "training/state_000009").is_dir()
+    assert (p80_run / "training/manifest.json").read_bytes() == (next_run / "training/manifest.json").read_bytes()
+    for label in p80_labels[1:]:
+        assert p80_report["checkpoints"][label]["metrics"]["policy_validation"]["group_sampling"] == "objective_mass"
+    p80_evaluation = run_suite(p80_run, tmp_path / "p80-evaluation", workers=1,
+        max_seconds=240, smoke=True, opponent="check_call")
+    assert p80_evaluation["status"] == "COMPLETE"
+    assert list(p80_evaluation["head_to_head"]) == ["P104-vs-P80", "P86-vs-P80", "P92-vs-P86", "P98-vs-P92", "P104-vs-P98"]
+    assert set(p80_evaluation["fo2"]["estimates"]) == set(p80_labels)
+    assert set(p80_evaluation["fo2"]["improvements"]) == set(p80_labels[1:])
+    p80_design = json.loads((tmp_path / "p80-evaluation/design.json").read_text())
+    assert p80_design["head_to_head_pilot_seeds"] == [100301, 100311, 100321, 100331, 100341]
+    assert p80_design["fo2_pilot_seed"] == 101501
+    assert p80_design["primary_alpha"] == .05 and p80_design["secondary_alpha"] == .05 / 8
     with pytest.raises(ValueError, match="checksum"):
         patch_trainer(patched, 123)
 
 
-@pytest.mark.parametrize("baseline_hours", [32, 56])
+@pytest.mark.parametrize("baseline_hours", [32, 56, 80])
 def test_batch_contract_and_shell(tmp_path, baseline_hours):
     module = launcher()
     bundle = tmp_path / "bundle"
@@ -152,7 +180,9 @@ def test_batch_contract_and_shell(tmp_path, baseline_hours):
         assert "--corrected-sampler" in script
     else:
         assert "--require-corrected-sampler" in script and "--corrected-sampler" not in script
-        assert module.P56_SHA256 in script and module.P56_SOURCE_URI in script
+        source_uri, baseline_sha256 = module.AUDITED_BASELINES[baseline_hours]
+        assert baseline_sha256 in script and source_uri in script
+        assert plan["source_uri"] == source_uri and plan["baseline_sha256"] == baseline_sha256
     assert "pip==25.3" in script and "--no-deps --only-binary=:all: torch==2.7.0+cpu" in script
     assert "APT::Update::Error-Mode=any" in script
     assert "free -m || true" in script and "python3-venv procps" in script
@@ -178,10 +208,11 @@ def test_corrected_trainer_guard(tmp_path, monkeypatch):
         corrected.verify_corrected_source(source, trainer)
 
 
-def test_p56_output_cannot_overlap_source(tmp_path):
+@pytest.mark.parametrize("baseline_hours", [56, 80])
+def test_corrected_output_cannot_overlap_source(tmp_path, baseline_hours):
     module = launcher()
     with pytest.raises(ValueError, match="independent output"):
         module.build_bundle(tmp_path / "bundle", project="test", region="europe-west1",
-            bucket=module.P56_SOURCE_URI, service_account="test", run_name="nested-run",
-            baseline_hours=56)
+            bucket=module.AUDITED_BASELINES[baseline_hours][0], service_account="test", run_name="nested-run",
+            baseline_hours=baseline_hours)
     assert not (tmp_path / "bundle").exists()

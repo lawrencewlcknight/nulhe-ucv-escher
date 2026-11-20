@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build/submit the corrected P32+24 or P56+24 Google Batch continuation."""
+"""Build/submit the corrected P32+24, P56+24 or P80+24 Batch continuation."""
 import argparse
 import hashlib
 import json
@@ -15,13 +15,19 @@ BASELINE_SHA256 = "9783cb191b46e22f759d7fe8215f342e4611ffbe05ad670525f057690d25a
 SOURCE_URI = "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-plus24-20261116-063535"
 P56_SOURCE_URI = "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-p32-plus24-batch-20261118-1105"
 P56_SHA256 = "35b5348443678a2738d8ae52b1b313370739be90b1e0c298d3f73afd72adc30e"
+P80_SOURCE_URI = "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-p56-plus24-batch-20261119-144002"
+P80_SHA256 = "822e1d499ce2688f362e46595220b341dbff6adf8546e9ca65a2e459f4020e8c"
+AUDITED_BASELINES = {
+    32: (SOURCE_URI, BASELINE_SHA256),
+    56: (P56_SOURCE_URI, P56_SHA256),
+    80: (P80_SOURCE_URI, P80_SHA256),
+}
 
 
 def build_bundle(output, *, project, region, bucket, service_account, run_name, baseline_hours=32):
-    if baseline_hours not in (32, 56):
-        raise ValueError("Batch launch requires the audited P32 or P56 baseline")
-    source_uri = SOURCE_URI if baseline_hours == 32 else P56_SOURCE_URI
-    baseline_sha256 = BASELINE_SHA256 if baseline_hours == 32 else P56_SHA256
+    if baseline_hours not in AUDITED_BASELINES:
+        raise ValueError("Batch launch requires an audited P32, P56 or P80 baseline")
+    source_uri, baseline_sha256 = AUDITED_BASELINES[baseline_hours]
     labels = [f"P{baseline_hours + 6*i}" for i in range(5)]
     if not re.fullmatch(r"[a-z][a-z0-9-]{1,61}[a-z0-9]", run_name):
         raise ValueError("Invalid Batch job name")
@@ -29,7 +35,7 @@ def build_bundle(output, *, project, region, bucket, service_account, run_name, 
         raise ValueError("Invalid output bucket prefix")
     uri = bucket.rstrip("/") + "/" + run_name
     if any(uri == source or uri.startswith(source + "/") or source.startswith(uri + "/")
-           for source in (SOURCE_URI, P56_SOURCE_URI)):
+           for source, _ in AUDITED_BASELINES.values()):
         raise ValueError("Replacement must have an independent output prefix")
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -64,7 +70,7 @@ def main():
     parser.add_argument("--bucket", default="gs://clever-overview-399515-fhp-escher-results/hulhe")
     parser.add_argument("--service-account", default="fhp-escher-runner@clever-overview-399515.iam.gserviceaccount.com")
     parser.add_argument("--run-name", required=True)
-    parser.add_argument("--baseline-hours", type=int, choices=(32, 56), default=32)
+    parser.add_argument("--baseline-hours", type=int, choices=tuple(AUDITED_BASELINES), default=32)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--execute", action="store_true")
     args = vars(parser.parse_args())
