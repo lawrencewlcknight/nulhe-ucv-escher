@@ -1,6 +1,7 @@
 """Google Batch coordinator for checkpoint diagnostics and frozen paired comparisons."""
 import argparse
 import json
+import re
 from pathlib import Path
 import sys
 import threading
@@ -15,7 +16,9 @@ from .strategic_audit.workflow import write_json
 
 def run_cloud(workspace,source_uri,output_uri,expected_policy_sha256,*,iteration=1132,
               checkpoint_label='P32',comparison_uri=None,comparison_policy_uri=None,
-              comparison_policy_sha256=None,comparison_library_sha256=None):
+              comparison_policy_sha256=None,comparison_library_sha256=None,comparison_label='P32'):
+    if not all(re.fullmatch(r'P[0-9]+',label) for label in (checkpoint_label,comparison_label)):
+        raise ValueError('Checkpoint labels must be P followed by active hours')
     source_uri,output_uri=source_uri.rstrip('/'),output_uri.rstrip('/')
     if source_uri==output_uri or source_uri.startswith(output_uri+'/') or output_uri.startswith(source_uri+'/'):
         raise ValueError('Independent sibling output prefix required')
@@ -27,7 +30,7 @@ def run_cloud(workspace,source_uri,output_uri,expected_policy_sha256,*,iteration
     root=Path(workspace);root.mkdir(parents=True,exist_ok=False)
     output=root/'results';output.mkdir()
     status=dict(status='PREPARING',source_uri=source_uri,output_uri=output_uri,iteration=iteration,
-        checkpoint_label=checkpoint_label,comparison_requested=bool(comparison_uri))
+        checkpoint_label=checkpoint_label,comparison_label=comparison_label,comparison_requested=bool(comparison_uri))
     stop=threading.Event()
     def stage(name):
         status['status']=name;write_json(output/'cloud_status.json',status)
@@ -58,11 +61,11 @@ def run_cloud(workspace,source_uri,output_uri,expected_policy_sha256,*,iteration
                 storage('cp',comparison_uri.rstrip('/')+'/encounters/'+name,frozen/name)
             baseline_analysis=baseline/'analysis.json'
             storage('cp',comparison_uri.rstrip('/')+'/analysis/report.json',baseline_analysis)
-            baseline_policy=baseline/'P32.pkl'
+            baseline_policy=baseline/f'{comparison_label}.pkl'
             storage('cp',comparison_policy_uri,baseline_policy)
-            if sha256_file(baseline_policy)!=comparison_policy_sha256:raise ValueError('Comparison P32 hash mismatch')
-            regression_policies += ['--policy','P32='+str(baseline_policy)]
-            write_json(output/'comparison_inputs.json',dict(investigation_uri=comparison_uri,
+            if sha256_file(baseline_policy)!=comparison_policy_sha256:raise ValueError('Comparison policy hash mismatch')
+            regression_policies += ['--policy',comparison_label+'='+str(baseline_policy)]
+            write_json(output/'comparison_inputs.json',dict(baseline_label=comparison_label,investigation_uri=comparison_uri,
                 policy_uri=comparison_policy_uri,policy_sha256=comparison_policy_sha256,
                 library_sha256=comparison_library_sha256))
         child('encounters',[sys.executable,'-m','hulhe_escher.position_investigation.collect',
@@ -82,7 +85,7 @@ def run_cloud(workspace,source_uri,output_uri,expected_policy_sha256,*,iteration
                 '--expected-candidate-sha256',expected_policy_sha256,
                 '--expected-library-sha256',comparison_library_sha256,
                 '--baseline-analysis',str(baseline_analysis),
-                '--candidate-label',checkpoint_label,'--max-seconds','1800'],1860)
+                '--candidate-label',checkpoint_label,'--baseline-label',comparison_label,'--max-seconds','1800'],1860)
         child('upstream',[sys.executable,str(Path(__file__).with_name('position_upstream.py')),
             '--source',str(trainer),'--state',str(state),'--contract',str(contract),'--policy',str(policy),
             '--selection',str(output/'analysis/upstream_positions.json'),'--output',str(output/'upstream'),
@@ -104,6 +107,7 @@ def main():
     for n in ('source-uri','output-uri','expected-policy-sha256'):p.add_argument('--'+n,required=True)
     p.add_argument('--iteration',type=int,default=1132)
     p.add_argument('--checkpoint-label',default='P32')
+    p.add_argument('--comparison-label',default='P32')
     for name in ('comparison-uri','comparison-policy-uri','comparison-policy-sha256','comparison-library-sha256'):
         p.add_argument('--'+name)
     if run_cloud(**vars(p.parse_args()))['status']!='COMPLETE':raise SystemExit(2)

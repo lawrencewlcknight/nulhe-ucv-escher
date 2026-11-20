@@ -384,6 +384,10 @@ generalization and local regret estimates, see
 visitation-based benchmark from P32 self-play and Fell Omen 2 encounters, audits
 history-conditioned river values, and instruments one isolated training iteration.
 
+The [P80 position audit](docs/P80_POSITION_INVESTIGATION.md) repeats the common-position
+diagnostic at P80 and compares P80 with P56 on the frozen P56 development library,
+holding the P56 opponent and ranges fixed. It runs as a separate Google Batch job.
+
 The [P56 versus corrected P32 comparison](docs/P32_CORRECTED_VS_P56.md) is an
 evaluation-only Google Batch experiment using both saved corrected P32 refits,
 fresh duplicate deals, and a predeclared equal-weight primary comparison.

@@ -2,6 +2,7 @@
 import argparse
 from collections import defaultdict
 import json
+import re
 from pathlib import Path
 import time
 
@@ -25,7 +26,7 @@ def paired_values(baseline, candidate):
     if not np.isclose(a['best_response_value_bb'],b['best_response_value_bb'],atol=1e-8,rtol=1e-9):
         raise ValueError('Paired policies do not share the same best-response reference')
     # Local-gap changes alone can be misleading when later hero actions change.
-    # Also hold P32 continuation Q fixed to isolate the current action mixture.
+    # Also hold baseline continuation Q fixed to isolate the current action mixture.
     root_change=sum((b['probabilities'][int(k)]-a['probabilities'][int(k)])*q for k,q in a['q_bb'].items())
     return dict(status='COMPLETE',baseline_local_gap_bb=a['local_gap_bb'],candidate_local_gap_bb=b['local_gap_bb'],
         local_gap_reduction_bb=a['local_gap_bb']-b['local_gap_bb'],
@@ -57,22 +58,23 @@ def summarize(rows):
 
 
 def render(output,report):
+    baseline_label=report.get('baseline_label','P32')
     lines=['# Paired strategic-position comparison','',f"Status: **{report['status']}**",'',
-        f"{report['candidate_label']} versus P32 on the original P32 development positions.",
+        f"{report['candidate_label']} versus {baseline_label} on the frozen {baseline_label} development positions.",
         'Positive reductions mean improvement. All values are bb per decision, not bb/100.',
         'Both policies face the same frozen opponent and root range. Assessment remains locked.', '',
-        '| Panel | Positions | P32 remaining gap | Candidate remaining gap | Reduction | Improved / regressed |',
+        f'| Panel | Positions | {baseline_label} remaining gap | Candidate remaining gap | Reduction | Improved / regressed |',
         '|---|---:|---:|---:|---:|---|']
     for row in report['summaries']:
         if row['scope']!='all':continue
         m=row['weighted']
         lines.append(f"| {row['panel']} | {row['positions']} | {m['baseline_remaining_gap_bb']:.6f} | "
             f"{m['candidate_remaining_gap_bb']:.6f} | {m['remaining_gap_reduction_bb']:+.6f} | {row['improved']} / {row['regressed']} |")
-    lines += ['', '## Families against frozen P32', '',
-        '| Family | Positions | P32 remaining gap | Candidate remaining gap | Reduction |',
+    lines += ['', f'## Families against frozen {baseline_label}', '',
+        f'| Family | Positions | {baseline_label} remaining gap | Candidate remaining gap | Reduction |',
         '|---|---:|---:|---:|---:|']
     for row in report['summaries']:
-        if row['panel']!='frozen_P32' or not row['scope'].startswith('family:'):continue
+        if row['panel']!=f'frozen_{baseline_label}' or not row['scope'].startswith('family:'):continue
         m=row['weighted']
         lines.append(f"| {row['scope'][7:]} | {row['positions']} | {m['baseline_remaining_gap_bb']:.6f} | "
                      f"{m['candidate_remaining_gap_bb']:.6f} | {m['remaining_gap_reduction_bb']:+.6f} |")
@@ -81,19 +83,21 @@ def render(output,report):
 
 
 def run(baseline_policy,candidate_policy,encounters,output,*,expected_baseline_sha256,
-        expected_candidate_sha256,expected_library_sha256,candidate_label='P56',max_seconds=1800,baseline_analysis=None):
+        expected_candidate_sha256,expected_library_sha256,candidate_label='P56',max_seconds=1800,baseline_analysis=None,baseline_label='P32'):
+    if not all(re.fullmatch(r'P[0-9]+',label) for label in (baseline_label,candidate_label)):
+        raise ValueError('Checkpoint labels must be P followed by active hours')
     torch.set_num_threads(1)
     output=Path(output);output.mkdir(parents=True,exist_ok=False)
     started=time.monotonic();check=deadline_after(max_seconds)
-    report=dict(status='RUNNING',candidate_label=candidate_label,positions=[],summaries=[],
+    report=dict(status='RUNNING',candidate_label=candidate_label,baseline_label=baseline_label,positions=[],summaries=[],
         limitations=[
             'Paired descriptive changes on frozen development positions, not a confirmatory population test; one training seed.',
             'Encounter inverse-inclusion weights are retained on the development subset; overlapping decisions and card orbits are correlated.',
             'No confidence intervals or whole-game loss estimates are inferred from these position averages.',
             'Remaining-river response gap uses the same best response for both candidates; local gap also depends on candidate continuation.',
-            'Fixed-baseline-continuation root action improvement isolates the current action mixture using P32 continuation values.',
+            f'Fixed-baseline-continuation root action improvement isolates the current action mixture using {baseline_label} continuation values.',
             'Earlier streets report action changes only; no oracle or improvement sign is assigned.',
-            'This compares the complete training continuation, including the sampling correction; it does not isolate its causal contribution.'])
+            'This compares fixed exported policies from one training run; it does not isolate individual causes of any change.'])
     try:
         for path,expected in ((baseline_policy,expected_baseline_sha256),(candidate_policy,expected_candidate_sha256)):
             if sha256_file(path)!=expected:raise ValueError('Policy checksum mismatch')
@@ -109,7 +113,8 @@ def run(baseline_policy,candidate_policy,encounters,output,*,expected_baseline_s
         if baseline_analysis:
             saved=json.loads(Path(baseline_analysis).read_text())
             if (saved['status']!='COMPLETE' or saved['source_policy_sha256']!=expected_baseline_sha256
-                    or saved['library_sha256']!=digest(library)):
+                    or saved['library_sha256']!=digest(library)
+                    or saved.get('learned_opponent_label','P32')!=baseline_label):
                 raise ValueError('Original analysis provenance mismatch')
             reference={row['id']:row for row in saved['positions']}
             if set(reference)!={p['id'] for p in positions}:raise ValueError('Original analysis position set mismatch')
@@ -121,7 +126,8 @@ def run(baseline_policy,candidate_policy,encounters,output,*,expected_baseline_s
         write_json(output/'manifest.json',dict(protocol='paired_position_comparison_v1',
             baseline_policy_sha256=expected_baseline_sha256,candidate_policy_sha256=expected_candidate_sha256,
             library_sha256=digest(library),position_ids=[p['id'] for p in positions],max_seconds=max_seconds,
-            learned_opponent='P32',assessment_unlocked=False,
+            baseline_label=baseline_label,candidate_label=candidate_label,
+            learned_opponent=baseline_label,assessment_unlocked=False,
             code_sha256={str(p.relative_to(Path(__file__).parents[1])):sha256_file(p)
                 for folder in (Path(__file__).parent,Path(__file__).parents[1]/'strategic_audit') for p in folder.glob('*.py')}))
         for p in positions:
@@ -132,7 +138,7 @@ def run(baseline_policy,candidate_policy,encounters,output,*,expected_baseline_s
                 action_l1=float(np.abs(pa-pb).sum()),candidate_checks=consistency_checks(candidate,p,check),panels={})
             if len(p['board'])==5:
                 space=RiverSpace(p);opponent=LearnedOpponent(space,baseline,check);weights=opponent.posterior()
-                references=[('frozen_P32',opponent,weights)]
+                references=[(f'frozen_{baseline_label}',opponent,weights)]
                 references += [(name+'/'+prior,name,space.weights(prior))
                     for name in ('check_call','value','pressure') for prior in ('uniform','strong','weak')]
                 for name,response,weights in references:
@@ -140,7 +146,7 @@ def run(baseline_policy,candidate_policy,encounters,output,*,expected_baseline_s
                     a=river_audit(space,baseline,response,weights,check)
                     b=river_audit(space,candidate,response,weights,check)
                     if reference:
-                        old=(reference[p['id']]['p32_opponent'] if name=='frozen_P32'
+                        old=(reference[p['id']]['p32_opponent'] if name==f'frozen_{baseline_label}'
                              else reference[p['id']]['synthetic_panels'][name])
                         if a['status']!=old['status']:raise ValueError('Original baseline support did not reproduce')
                         if a['status']=='COMPLETE':
@@ -170,6 +176,7 @@ def main():
     for n in ('expected-baseline-sha256','expected-candidate-sha256','expected-library-sha256'):p.add_argument('--'+n,required=True)
     p.add_argument('--candidate-label',default='P56');p.add_argument('--max-seconds',type=int,default=1800)
     p.add_argument('--baseline-analysis',type=Path)
+    p.add_argument('--baseline-label',default='P32')
     if run(**vars(p.parse_args()))['status']!='COMPLETE':raise SystemExit(2)
 
 

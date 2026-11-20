@@ -19,6 +19,7 @@ def render(root):
             [('encounters',encounters),('analysis',audit),('upstream',probes),('iteration',iteration),('regression',regression)]}
     cloud=read('cloud_status.json')
     comparison=read('comparison/report.json')
+    comparison_label=comparison.get('baseline_label',cloud.get('comparison_label','P32'))
     if cloud.get('comparison_requested'):
         stages['comparison']=comparison['status']
     complete=all(s=='COMPLETE' for s in stages.values())
@@ -39,7 +40,7 @@ def render(root):
             'No new playable policy is selected and no playing-strength improvement is claimed. Assessment remains locked.'])
     if 'reason' in cloud:summary['reason']=cloud['reason']
     if cloud.get('comparison_requested'):
-        summary['paired_comparison']=dict(status=comparison['status'],
+        summary['paired_comparison']=dict(status=comparison['status'],baseline_label=comparison_label,
             completed_positions=comparison.get('completed_positions',0),summaries=comparison.get('summaries',[]),
             report='comparison/report.md')
     write_json(root/'summary.json',summary)
@@ -66,9 +67,9 @@ def render(root):
         '- Good targets but large actual training residuals: investigate regret fitting; synthetic probe changes alone do not establish this.',
         '', *['- '+s for s in summary['limitations']], '']
     if cloud.get('comparison_requested'):
-        lines += ['## Paired comparison with P32','',
-            'See comparison/report.md for both policies on identical original P32 development positions, '
-            'with a shared frozen P32 opponent and posterior. Positive gap reductions mean improvement.', '',
+        lines += [f'## Paired comparison with {comparison_label}','',
+            f'See comparison/report.md for both policies on identical frozen {comparison_label} development positions, '
+            f'with a shared frozen {comparison_label} opponent and posterior. Positive gap reductions mean improvement.', '',
             '| Panel | Positions | Remaining-river gap reduction, bb/decision |', '|---|---:|---:|']
         for row in comparison.get('summaries',[]):
             if row['scope']=='all':lines.append(f"| {row['panel']} | {row['positions']} | {row['weighted']['remaining_gap_reduction_bb']:+.6f} |")

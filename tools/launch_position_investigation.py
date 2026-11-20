@@ -10,10 +10,10 @@ from batch_runtime import bootstrap, job_spec
 from launch_bottleneck import build_bundle as recovery_bundle
 
 
-def build_bundle(output,*,checkpoint_label='P32',comparison_uri=None,
+def build_bundle(output,*,checkpoint_label='P32',comparison_label='P32',comparison_uri=None,
                  comparison_policy_uri=None,comparison_policy_sha256=None,
                  comparison_library_sha256=None,**kwargs):
-    if not re.fullmatch(r'P[0-9]+',checkpoint_label):
+    if not all(re.fullmatch(r'P[0-9]+',label) for label in (checkpoint_label,comparison_label)):
         raise ValueError('Checkpoint label must be P followed by active hours')
     comparison=(comparison_uri,comparison_policy_uri,comparison_policy_sha256,comparison_library_sha256)
     if any(comparison) and not all(comparison):
@@ -36,6 +36,7 @@ def build_bundle(output,*,checkpoint_label='P32',comparison_uri=None,
         '--expected-policy-sha256',base['expected_policy_sha256'],'--iteration',str(base['iteration']),
         '--checkpoint-label',checkpoint_label]
     if all(comparison):
+        command.extend(['--comparison-label',comparison_label])
         for name,value in zip(('comparison-uri','comparison-policy-uri','comparison-policy-sha256',
                                'comparison-library-sha256'),comparison):command.extend(['--'+name,value])
     script=bootstrap(command,base['uri'],base['source_sha256'])
@@ -54,10 +55,10 @@ def build_bundle(output,*,checkpoint_label='P32',comparison_uri=None,
         assessment='Locked; development only by default. No candidate selection or strength claim.',
         source_access=f'Read-only {checkpoint_label} checkpoint; isolated local restoration. No production continuation saved.')
     if all(comparison):
-        plan.update(comparison_uri=comparison_uri,comparison_policy_uri=comparison_policy_uri,
+        plan.update(comparison_label=comparison_label,comparison_uri=comparison_uri,comparison_policy_uri=comparison_policy_uri,
             comparison_policy_sha256=comparison_policy_sha256,comparison_library_sha256=comparison_library_sha256,
-            comparison_guard_seconds=1860,comparison='Both exported policies on original P32 development positions, '
-            'same frozen P32 opponent/posterior and nine synthetic panels; paired descriptive changes, assessment locked.')
+            comparison_guard_seconds=1860,comparison=f'Both exported policies on frozen {comparison_label} development positions, '
+            f'same frozen {comparison_label} opponent/posterior and nine synthetic panels; paired descriptive changes, assessment locked.')
     (output/'batch.sh').write_text(script)
     for name,data in [('job.json',job),('launch.json',plan)]:
         (output/name).write_text(json.dumps(data,indent=2)+'\n')
@@ -69,6 +70,7 @@ def main(argv=None):
     for n in ('project','bucket','service-account','run-name','source-uri','expected-policy-sha256'):p.add_argument('--'+n,required=True)
     p.add_argument('--region',default='europe-west1');p.add_argument('--iteration',type=int,default=1132)
     p.add_argument('--checkpoint-label',default='P32')
+    p.add_argument('--comparison-label',default='P32')
     for name in ('comparison-uri','comparison-policy-uri','comparison-policy-sha256','comparison-library-sha256'):
         p.add_argument('--'+name)
     p.add_argument('--output',type=Path,required=True);p.add_argument('--execute',action='store_true')

@@ -303,24 +303,40 @@ def test_paired_comparison_uses_common_response_and_sign():
     assert paired_values(a,dict(status='UNSUPPORTED'))==dict(status='UNSUPPORTED')
 
 
-def test_paired_comparison_identity_and_provenance(recovery,tmp_path):
+@pytest.mark.parametrize('baseline_label,candidate_label',[('P32','P56'),('P56','P80')])
+def test_paired_comparison_identity_and_provenance(recovery,tmp_path,baseline_label,candidate_label):
     from hulhe_escher.position_investigation.compare import run as compare
     policy=recovery/'policy_000001.pkl';encounters=tmp_path/'encounters'
     collect(policy,encounters,opponent='check_call',hands=100,workers=1,max_seconds=90,river=8,earlier=12)
-    analyse(recovery/'state_000001',policy,encounters,tmp_path/'original-analysis',max_seconds=120,upstream_positions=2)
+    analyse(recovery/'state_000001',policy,encounters,tmp_path/'original-analysis',max_seconds=120,
+            upstream_positions=2,checkpoint_label=baseline_label)
     encounter=json.loads((encounters/'report.json').read_text())
     kwargs=dict(expected_baseline_sha256=sha256_file(policy),expected_candidate_sha256=sha256_file(policy),
-                expected_library_sha256=encounter['library_sha256'])
+                expected_library_sha256=encounter['library_sha256'],
+                baseline_label=baseline_label,candidate_label=candidate_label)
     report=compare(policy,policy,encounters,tmp_path/'comparison',max_seconds=120,
                    baseline_analysis=tmp_path/'original-analysis/report.json',**kwargs)
     assert report['status']=='COMPLETE' and report['completed_positions']==encounter['development']
     assert all(r['position']['partition']=='development' for r in report['positions'])
     assert report['summaries']
+    assert report['baseline_label']==baseline_label and report['candidate_label']==candidate_label
+    assert any(row['panel']==f'frozen_{baseline_label}' for row in report['summaries'])
+    manifest=json.loads((tmp_path/'comparison/manifest.json').read_text())
+    assert manifest['learned_opponent']==baseline_label and not manifest['assessment_unlocked']
+    text=(tmp_path/'comparison/report.md').read_text()
+    assert f'{candidate_label} versus {baseline_label}' in text
+    if baseline_label=='P56':assert 'P32' not in text
     assert report['baseline_reproduction_max_abs_error']<1e-10
     for row in report['summaries']:
         assert row['weighted']['remaining_gap_reduction_bb']==0
         assert row['weighted']['root_action_improvement_fixed_baseline_continuation_bb']==0
         assert row['improved']==row['regressed']==0
+    saved_path=tmp_path/'original-analysis/report.json'
+    saved=json.loads(saved_path.read_text())
+    saved['learned_opponent_label']='P104'
+    saved_path.write_text(json.dumps(saved))
+    with pytest.raises(ValueError,match='Original analysis provenance'):
+        compare(policy,policy,encounters,tmp_path/'wrong-opponent',baseline_analysis=saved_path,**kwargs)
     kwargs['expected_library_sha256']='0'*64
     with pytest.raises(ValueError,match='provenance'):
         compare(policy,policy,encounters,tmp_path/'changed',**kwargs)
