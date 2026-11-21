@@ -97,7 +97,7 @@ def run_fo2(experiment, output, *, workers=8, pilot_pairs=10000, minimum=100000,
         report.update(status='EVALUATION_ERROR', error_type=type(exc).__name__, reason=str(exc))
     finally:
         usable = (report['status']=='COMPLETE' and opponent=='fo2' and
-                  not report['smoke'] and primary_passed)
+                  not report['smoke'])
         if len(main) >= 2:
             scores = {label:np.asarray([r[label]['mean_bb'] for r in main]) for label in labels}
             for label, values in scores.items():
@@ -105,6 +105,11 @@ def run_fo2(experiment, output, *, workers=8, pilot_pairs=10000, minimum=100000,
                 report['estimates'][label]['conclusion'] = 'descriptive'
             report['improvements'] = {label:estimate(scores[label]-scores[labels[0]],
                 alpha=SECONDARY_ALPHA, complete=usable) for label in labels[1:]}
+            for result in report['improvements'].values():
+                # A failed primary gate is not an incomplete or zero-variance match.
+                # Preserve genuine incomplete/degenerate labels unchanged.
+                if result['confirmatory']:
+                    gate_secondary(result, primary_passed, False)
         report['completed_groups'] = len(main)
         report['completed_hands_per_policy'] = 2*len(main)
         report['adaptations'] = {label:sum(r[label]['adaptations'] for r in main) for label in labels}
@@ -143,7 +148,9 @@ def render(root, report):
 
 
 def run_suite(experiment, output, *, workers=8, max_seconds=43200,
-              assets=DEFAULT_ASSETS, smoke=False, opponent='fo2'):
+              assets=DEFAULT_ASSETS, smoke=False, opponent='fo2',
+              primary_minimum=100000, primary_effect_bb100=2.):
+    validate_design(0, workers, 10000, primary_minimum, 1000000, max_seconds, primary_effect_bb100)
     root, output = Path(experiment), Path(output)
     training = json.loads((root/'continuation.json').read_text())
     if training['status'] != 'TRAINING_COMPLETE' or not training.get('final_recovery_verified'):
@@ -164,7 +171,12 @@ def run_suite(experiment, output, *, workers=8, max_seconds=43200,
                   secondary_alpha=SECONDARY_ALPHA, secondary_family_size=8)
     write_json(output/'design.json', dict(labels=labels, primary=report['primary'],
         secondary_alpha=SECONDARY_ALPHA, secondary_family_size=8, primary_alpha=.05,
-        effect_bb100=2, power=.8, pilot_excluded=True, workers=workers,
+        primary_effect_bb100=primary_effect_bb100, secondary_effect_bb100=2.,
+        primary_minimum_pairs=8 if smoke else primary_minimum,
+        secondary_minimum_pairs=8 if smoke else 100000,
+        maximum_pairs=8 if smoke else 1000000, pilot_pairs=4 if smoke else 10000,
+        primary_time_weight=1. if smoke else primary_minimum/100000,
+        power=.8, pilot_excluded=True, workers=workers,
         max_seconds=max_seconds, smoke=smoke,
         head_to_head_pilot_seeds=[28301+seed_offset+10*i for i in range(5)],
         fo2_pilot_seed=29501+seed_offset))
@@ -176,17 +188,22 @@ def run_suite(experiment, output, *, workers=8, max_seconds=43200,
             raise ValueError('Policy differs from completed training record')
     limits=dict(pilot_pairs=4, minimum=8, maximum=8) if smoke else {}
     matches=[(labels[-1],labels[0]), *zip(labels[1:],labels[:-1])]
+    time_weights=[1. if smoke else primary_minimum/100000, 1., 1., 1., 1.]
     h2h_deadline=time.monotonic()+.2*max_seconds
     primary_passed=False
     for i,(a,b) in enumerate(matches):
         name=a+'-vs-'+b
-        budget=(h2h_deadline-time.monotonic())/(len(matches)-i)
+        budget=(h2h_deadline-time.monotonic())*time_weights[i]/sum(time_weights[i:])
         if budget <= 1:
             item=dict(status='SKIPPED_TIME_LIMIT',result=None)
         else:
+            match_limits = dict(limits)
+            if i==0 and not smoke:
+                match_limits['minimum'] = primary_minimum
             item=run_evaluation(root/f'{a}.pkl',str(root/f'{b}.pkl'),output/name,
                 workers=workers, max_seconds=budget, seed=28301+seed_offset+10*i,
-                alpha=.05 if i==0 else SECONDARY_ALPHA, **limits)
+                alpha=.05 if i==0 else SECONDARY_ALPHA,
+                effect_bb100=primary_effect_bb100 if i==0 else 2., **match_limits)
         if i==0:
             primary_passed=(not smoke and item['status']=='COMPLETE' and
                 (item.get('result') or {}).get('confirmatory',False) and item['result']['conclusion']=='improved')
@@ -219,6 +236,8 @@ def main():
     p.add_argument('--assets',type=Path,default=DEFAULT_ASSETS)
     p.add_argument('--smoke',action='store_true')
     p.add_argument('--opponent',choices=['fo2','check_call','random'],default='fo2')
+    p.add_argument('--primary-minimum',type=int,default=100000)
+    p.add_argument('--primary-effect-bb100',type=float,default=2.)
     result=run_suite(**vars(p.parse_args()))
     if result['status'] != 'COMPLETE':
         raise SystemExit(1)

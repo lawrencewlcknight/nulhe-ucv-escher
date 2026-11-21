@@ -8,6 +8,7 @@ import threading
 from .checkpointing import sha256_file
 from .continuation import checked_pointer, checkpoint_labels, run_continuation
 from .continuation_evaluate import run_suite
+from .learning_evaluate import validate_design
 from .fo2_setup import prepare
 from .train import write_json
 from .storage_transfer import run_transfer
@@ -58,7 +59,8 @@ def download_source(uri, workspace, expected_p8_sha256, baseline_hours=8):
 def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
               resume_checkpoint=None, expected_resume_sha256=None,
               training_wall_seconds=108000, baseline_hours=8, corrected_sampler=False,
-              require_corrected_sampler=False):
+              require_corrected_sampler=False, primary_minimum=100000, primary_effect_bb100=2.):
+    validate_design(0, 8, 10000, primary_minimum, 1000000, 43200, primary_effect_bb100)
     baseline = checkpoint_labels(baseline_hours)[0]
     archive = "source.tar.gz" if baseline_hours == 8 else "training_source.tar.gz"
     # Avoid overwriting or pruning any part of the original experiment.
@@ -131,7 +133,10 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
             source_fingerprint=report['training_source_fingerprint'],
             instructions='Restore the latest full state and manifest, use the archived training source and exact runtime; preserve all contract arguments when invoking hulhe_escher.train --resume. Playable policies alone cannot resume training.'))
         sync()
-        run_suite(output,output/'evaluation',workers=8,max_seconds=43200,assets=root/'fo2-assets')
+        evaluation=run_suite(output,output/'evaluation',workers=8,max_seconds=43200,assets=root/'fo2-assets',
+            primary_minimum=primary_minimum,primary_effect_bb100=primary_effect_bb100)
+        if evaluation['status'] != 'COMPLETE':
+            raise RuntimeError('Continuation evaluation incomplete; inspect evaluation/report.json')
     except Exception as exc:
         output.mkdir(parents=True,exist_ok=True)
         write_json(output/'cloud_failure.json',dict(error_type=type(exc).__name__,reason=str(exc)))
@@ -152,6 +157,8 @@ def main():
     p.add_argument('--resume-checkpoint')
     p.add_argument('--expected-resume-sha256')
     p.add_argument('--training-wall-seconds', type=float, default=108000)
+    p.add_argument('--primary-minimum',type=int,default=100000)
+    p.add_argument('--primary-effect-bb100',type=float,default=2.)
     p.add_argument('--corrected-sampler', action='store_true')
     p.add_argument('--require-corrected-sampler', action='store_true',
                    help='Verify the already corrected archived trainer; do not migrate it again')

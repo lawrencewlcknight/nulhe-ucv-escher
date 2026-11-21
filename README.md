@@ -314,6 +314,12 @@ do not change the archived training source or bypass its resume contract.
 
 ### Continue P32 to P56 (and subsequent 24-hour blocks)
 
+For the **P104→P128 Google Batch experiment**, use the
+[P104 continuation guide](docs/P104_CONTINUATION.md). It restores the verified
+P104 full recovery, retains corrected policy sampling, and exports P110, P116,
+P122 and P128. The primary P128/P104 comparison uses at least 400,000 duplicate
+pairs, with the existing adjacent comparisons and Fell Omen 2 benchmark.
+
 For the **P80→P104 Google Batch experiment**, use the
 [P80 continuation guide](docs/P80_CONTINUATION.md). It restores the verified P80
 full recovery, retains the corrected policy sampler, and exports P86, P92, P98

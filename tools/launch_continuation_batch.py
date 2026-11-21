@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build/submit the corrected P32+24, P56+24 or P80+24 Batch continuation."""
+"""Build/submit a corrected P32, P56, P80 or P104 +24-hour Batch continuation."""
 import argparse
 import hashlib
 import json
@@ -17,16 +17,19 @@ P56_SOURCE_URI = "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-p32
 P56_SHA256 = "35b5348443678a2738d8ae52b1b313370739be90b1e0c298d3f73afd72adc30e"
 P80_SOURCE_URI = "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-p56-plus24-batch-20261119-144002"
 P80_SHA256 = "822e1d499ce2688f362e46595220b341dbff6adf8546e9ca65a2e459f4020e8c"
+P104_SOURCE_URI = "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-p80-plus24-batch-20261120-171431"
+P104_SHA256 = "7266950fc5fd4adfa37319e41bc69264e938e98c46754874c99e23483e442ad2"
 AUDITED_BASELINES = {
     32: (SOURCE_URI, BASELINE_SHA256),
     56: (P56_SOURCE_URI, P56_SHA256),
     80: (P80_SOURCE_URI, P80_SHA256),
+    104: (P104_SOURCE_URI, P104_SHA256),
 }
 
 
 def build_bundle(output, *, project, region, bucket, service_account, run_name, baseline_hours=32):
     if baseline_hours not in AUDITED_BASELINES:
-        raise ValueError("Batch launch requires an audited P32, P56 or P80 baseline")
+        raise ValueError("Batch launch requires an audited P32, P56, P80 or P104 baseline")
     source_uri, baseline_sha256 = AUDITED_BASELINES[baseline_hours]
     labels = [f"P{baseline_hours + 6*i}" for i in range(5)]
     if not re.fullmatch(r"[a-z][a-z0-9-]{1,61}[a-z0-9]", run_name):
@@ -45,6 +48,9 @@ def build_bundle(output, *, project, region, bucket, service_account, run_name, 
         "--source-uri", source_uri, "--output-uri", uri, "--expected-baseline-sha256", baseline_sha256,
         "--baseline-hours", str(baseline_hours)]
     command += ["--corrected-sampler" if baseline_hours == 32 else "--require-corrected-sampler"]
+    primary_minimum = 400000 if baseline_hours == 104 else 100000
+    primary_effect = 1.0 if baseline_hours == 104 else 2.0
+    command += ["--primary-minimum", str(primary_minimum), "--primary-effect-bb100", str(primary_effect)]
     script = bootstrap(command, uri, digest)
     job = job_spec(script, service_account, boot_disk_gb=200, max_run_seconds=158400,
         labels=dict(experiment=f"hulhe-p{baseline_hours}-plus24", sampler="objective-mass"))
@@ -56,6 +62,9 @@ def build_bundle(output, *, project, region, bucket, service_account, run_name, 
         max_job_hours=44, training_wall_hours=30, evaluation_wall_hours=12,
         automatic_retries=0, retry_reason="Prevent silent repeated 24-hour training; full six-hour recovery remains in GCS",
         primary=f"{labels[-1]} vs {labels[0]}, alpha 0.05", secondary="Adjacent policies and paired Fell Omen 2 improvements, alpha 0.05/8",
+        primary_minimum_pairs=primary_minimum, primary_maximum_pairs=1000000,
+        primary_effect_bb100=primary_effect, pilot_pairs=10000, power=.8,
+        primary_time_weight=primary_minimum/100000, secondary_effect_bb100=2.,
         cleanup="Batch releases its VM and boot disk; results and full recovery remain in GCS")
     for name, data in (("job.json", job), ("launch.json", plan)):
         (output / name).write_text(json.dumps(data, indent=2) + "\n")

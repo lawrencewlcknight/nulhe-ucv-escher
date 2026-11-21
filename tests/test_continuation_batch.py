@@ -153,11 +153,31 @@ def test_migration_preserves_all_learning_state_and_continues(tmp_path):
     assert p80_design["head_to_head_pilot_seeds"] == [100301, 100311, 100321, 100331, 100341]
     assert p80_design["fo2_pilot_seed"] == 101501
     assert p80_design["primary_alpha"] == .05 and p80_design["secondary_alpha"] == .05 / 8
+    # The next block restores P104 and retains the exact corrected trainer.
+    p104_run = tmp_path / "p104-plus24"
+    original_p104 = (p80_run / "P104.pkl").read_bytes()
+    p104_report = run_continuation(p80_run, patched, p104_run, baseline_hours=104,
+        stage_seconds=.001, wall_seconds=180, allow_smoke=True, require_objective_mass=True)
+    p104_labels = ["P104", "P110", "P116", "P122", "P128"]
+    assert p104_report["labels"] == p104_labels and p104_report["final_recovery_verified"]
+    assert [p104_report["checkpoints"][p]["outer_iteration"] for p in p104_labels] == [13,14,15,16,17]
+    assert (p104_run / "P104.pkl").read_bytes() == original_p104 == (p80_run / "P104.pkl").read_bytes()
+    assert (p80_run / "training/state_000013").is_dir()
+    for label in p104_labels[1:]:
+        assert p104_report["checkpoints"][label]["metrics"]["policy_validation"]["group_sampling"] == "objective_mass"
+    p104_evaluation = run_suite(p104_run, tmp_path / "p104-evaluation", workers=1,
+        max_seconds=240, smoke=True, opponent="check_call", primary_minimum=400000, primary_effect_bb100=1.)
+    assert p104_evaluation["status"] == "COMPLETE"
+    assert list(p104_evaluation["head_to_head"]) == ["P128-vs-P104", "P110-vs-P104", "P116-vs-P110", "P122-vs-P116", "P128-vs-P122"]
+    assert set(p104_evaluation["fo2"]["estimates"]) == set(p104_labels)
+    design = json.loads((tmp_path / "p104-evaluation/design.json").read_text())
+    assert design["head_to_head_pilot_seeds"] == [124301,124311,124321,124331,124341]
+    assert design["fo2_pilot_seed"] == 125501
     with pytest.raises(ValueError, match="checksum"):
         patch_trainer(patched, 123)
 
 
-@pytest.mark.parametrize("baseline_hours", [32, 56, 80])
+@pytest.mark.parametrize("baseline_hours", [32, 56, 80, 104])
 def test_batch_contract_and_shell(tmp_path, baseline_hours):
     module = launcher()
     bundle = tmp_path / "bundle"
@@ -176,6 +196,11 @@ def test_batch_contract_and_shell(tmp_path, baseline_hours):
     assert job["labels"]["experiment"] == f"hulhe-p{baseline_hours}-plus24"
     script = (bundle / "batch.sh").read_text()
     assert "shutdown" not in script
+    expected_minimum, expected_effect = (400000, 1.) if baseline_hours == 104 else (100000, 2.)
+    assert plan['primary_minimum_pairs'] == expected_minimum
+    assert plan['primary_effect_bb100'] == expected_effect
+    assert f'--primary-minimum {expected_minimum}' in script
+    assert f'--primary-effect-bb100 {expected_effect}' in script
     if baseline_hours == 32:
         assert "--corrected-sampler" in script
     else:
@@ -208,7 +233,7 @@ def test_corrected_trainer_guard(tmp_path, monkeypatch):
         corrected.verify_corrected_source(source, trainer)
 
 
-@pytest.mark.parametrize("baseline_hours", [56, 80])
+@pytest.mark.parametrize("baseline_hours", [56, 80, 104])
 def test_corrected_output_cannot_overlap_source(tmp_path, baseline_hours):
     module = launcher()
     with pytest.raises(ValueError, match="independent output"):
