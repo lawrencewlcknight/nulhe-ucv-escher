@@ -25,3 +25,20 @@ COMPARISON_CAVEAT = (
     "ablation. Equal active hours do not imply equal iterations, nodes or FLOPs. "
     "One training seed cannot establish generalization across training runs."
 )
+
+
+def deep_scaling_config(*, small=False):
+    config = scaling_config(small=small)
+    config.update(num_layers=10, num_hiddens=256,
+                  average_policy_network_layers=[256] * 10,
+                  regret_policy_architecture="deep_residual_v1")
+    validate_config(config)
+    return config
+
+
+DEEP_COMPARISON_CAVEAT = (
+    "Fresh deep residual normalized networks versus fresh wide plain networks; "
+    "all other training settings are held fixed. This tests an architecture recipe, "
+    "not depth alone. Equal active hours are not equal samples or FLOPs. One seed "
+    "supports run-specific conclusions, not training-seed generalization."
+)

@@ -53,14 +53,14 @@ def memory_gate(root, config_path, *, workers, threads, small=False):
 
 
 def train_stages(root, config_path, *, workers=8, threads=8, seed=20261115,
-                 wall_seconds=144000, smoke=False, upload_uri=None):
+                 wall_seconds=144000, smoke=False, upload_uri=None, comparison_caveat=COMPARISON_CAVEAT):
     training = root / 'training'
     source = Path(__file__).resolve().parents[1]
     deadline = time.monotonic() + wall_seconds
     report = dict(status='TRAINING', fresh_initialization=True, config=json.loads(config_path.read_text()),
                   source_fingerprint=source_fingerprint(), seed=seed, workers=workers, threads=threads,
                   smoke=smoke, active_hours=32, labels=[f'P{h}' for h in CHECKPOINT_HOURS],
-                  checkpoints={}, stages={}, comparison_caveat=COMPARISON_CAVEAT)
+                  checkpoints={}, stages={}, comparison_caveat=comparison_caveat)
     write_json(root / 'scaling.json', report)
     previous = 0.
     try:
@@ -126,16 +126,18 @@ def train_stages(root, config_path, *, workers=8, threads=8, seed=20261115,
     return report
 
 
-def evaluate(root, *, workers=8, seconds=43200, smoke=False):
+def evaluate(root, *, workers=8, seconds=43200, smoke=False, matches=None,
+             comparison_caveat=COMPARISON_CAVEAT):
     # One primary historical comparison and five adjusted within-run tests.
     # Independent pilot/confirmation deals, duplicate seats, no optional stopping.
     labels = [f'P{h}' for h in CHECKPOINT_HOURS]
-    matches = [('historical-P32', 'P32', root / 'historical/P32.pkl', .05, .5)]
-    matches += [('P32-vs-P8', 'P32', root / 'P8.pkl', .01, .1)]
-    matches += [(f'{b}-vs-{a}', b, root / f'{a}.pkl', .01, .1)
-                for a, b in zip(labels, labels[1:])]
-    report = dict(status='EVALUATING', tests={}, comparison_caveat=COMPARISON_CAVEAT,
-                  primary='historical-P32', secondary_alpha=.05/5, smoke=smoke)
+    if matches is None:
+        matches = [('historical-P32', 'P32', root / 'historical/P32.pkl', .05, .5)]
+        matches += [('P32-vs-P8', 'P32', root / 'P8.pkl', .01, .1)]
+        matches += [(f'{b}-vs-{a}', b, root / f'{a}.pkl', .01, .1)
+                    for a, b in zip(labels, labels[1:])]
+    report = dict(status='EVALUATING', tests={}, comparison_caveat=comparison_caveat,
+                  primary=matches[0][0], secondary_alpha=.05/5, smoke=smoke)
     deadline = time.monotonic() + seconds
     for index, (name, a, b, alpha, fraction) in enumerate(matches):
         budget = min(seconds * fraction, deadline-time.monotonic())

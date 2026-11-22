@@ -413,3 +413,11 @@ checks common river decisions without new self-play or full replay downloads.
 The [P56 versus corrected P32 comparison](docs/P32_CORRECTED_VS_P56.md) is an
 evaluation-only Google Batch experiment using both saved corrected P32 refits,
 fresh duplicate deals, and a predeclared equal-weight primary comparison.
+
+## Fresh architecture comparisons
+
+The [wide32 experiment](docs/WIDE32_SCALING.md) trains 512×3 regret/policy trunks.
+The [deep32 experiment](docs/DEEP32_SCALING.md) substitutes approximately
+parameter-matched 256×10 pre-activation residual trunks, preserving the rest of
+the fresh 32-hour recipe and evaluating directly against matching wide policies.
+Both run as bounded Google Batch jobs; preparation does not submit compute.

@@ -34,7 +34,11 @@ class _StructuredModelMixin:
     structured_branch_width: int
 
     def init_model(self):
-        return StructuredHULHEMLP(
+        model_class = StructuredHULHEMLP
+        if getattr(self, "regret_policy_architecture", "plain") == "deep_residual_v1":
+            from hulhe_escher.deep_model import DeepResidualHULHEMLP
+            model_class = DeepResidualHULHEMLP
+        return model_class(
             self.feature_layout,
             self.network_layers,
             self.output_size,
@@ -49,11 +53,13 @@ class StructuredHULHERegretTrainer(RegretFitMixin, _StructuredModelMixin, VRDCFR
         feature_encoder: HULHEFeatureEncoder,
         branch_width: int,
         replay_seed: int,
+        regret_policy_architecture="plain",
         gradient_clip_norm=None,
         cache_frozen_targets: bool = True,
         uniform_regret_ties: bool = True,
         **kwargs,
     ):
+        self.regret_policy_architecture = regret_policy_architecture
         self.feature_encoder = feature_encoder
         self.feature_layout = feature_encoder.policy_layout
         self.structured_branch_width = int(branch_width)
@@ -86,12 +92,14 @@ class StructuredHULHEAveragePolicyTrainer(
         feature_encoder: HULHEFeatureEncoder,
         branch_width: int,
         replay_seed: int,
+        regret_policy_architecture="plain",
         validation_fraction: float = 0.05,
         validation_steps=(2500, 5000, 10000, 20000),
         policy_group_sampling="uniform",
         policy_sampling_seed=0,
         **kwargs,
     ):
+        self.regret_policy_architecture = regret_policy_architecture
         self.feature_encoder = feature_encoder
         self.feature_layout = feature_encoder.policy_layout
         self.structured_branch_width = int(branch_width)
@@ -269,6 +277,7 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
         *args,
         structured_branch_width: int = 64,
         critic_branch_width: int | None = None,
+        regret_policy_architecture: str = "plain",
         policy_group_sampling: str = "uniform",
         critic_network_layers=None,
         calibration_network_layers=None,
@@ -282,6 +291,9 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
         policy_validation_steps=(2500, 5000, 10000, 20000),
         **kwargs,
     ):
+        if regret_policy_architecture not in ("plain", "deep_residual_v1"):
+            raise ValueError("Unknown regret/policy architecture")
+        self.regret_policy_architecture = regret_policy_architecture
         self.feature_encoder = make_feature_encoder(feature_encoder_id)
         self.critic_min_train_steps = int(critic_min_train_steps)
         self.calibration_min_train_steps = int(calibration_min_train_steps)
@@ -359,6 +371,7 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
             validation_steps=self.policy_validation_steps,
             policy_group_sampling=self.policy_group_sampling,
             policy_sampling_seed=self.feature_replay_seed,
+            regret_policy_architecture=self.regret_policy_architecture,
         )
         random.setstate(rng_after_legacy["python"])
         np.random.set_state(rng_after_legacy["numpy"])
@@ -389,6 +402,7 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
                 gradient_clip_norm=self.regret_policy_gradient_clip_norm,
                 cache_frozen_targets=self.cache_frozen_regret_targets,
                 uniform_regret_ties=self.uniform_regret_ties,
+                regret_policy_architecture=self.regret_policy_architecture,
             )
             for player in range(self.num_players)
         ]

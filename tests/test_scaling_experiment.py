@@ -10,7 +10,7 @@ import pytest
 import torch
 
 from hulhe_escher.config import baseline_config, smoke_config, make_solver, validate_config
-from hulhe_escher.scaling_config import scaling_config, CHECKPOINT_HOURS
+from hulhe_escher.scaling_config import scaling_config, deep_scaling_config, CHECKPOINT_HOURS
 from hulhe_escher.training_state import read_training_state
 from test_optimization import assert_tree_equal
 
@@ -53,9 +53,10 @@ def test_invalid_experiment_override_rejected(key, value):
         validate_config(c)
 
 
-def test_objective_mass_scaled_resume_matches_uninterrupted(tmp_path):
+@pytest.mark.parametrize("config_factory", [scaling_config, deep_scaling_config])
+def test_objective_mass_scaled_resume_matches_uninterrupted(tmp_path, config_factory):
     config = tmp_path / 'config.json'
-    config.write_text(json.dumps(scaling_config(small=True)))
+    config.write_text(json.dumps(config_factory(small=True)))
     common = [sys.executable, '-m', 'hulhe_escher.train', '--config', str(config), '--seed', '43',
               '--threads', '1', '--policy-every', '1', '--checkpoint-every', '1', '--recovery-seconds', '0']
     for name, iterations, resume in [('control', 3, False), ('continued', 2, False), ('continued', 3, True)]:
