@@ -399,6 +399,11 @@ all-replay policy extraction (including earlier stopping checkpoints and fresh
 paired matches) and investigate regret-target noise with conditional fitting.
 Both use frozen P56 river panels and preserve the P104 source and continuation.
 
+The [P104 twenty-network ensemble experiment](docs/P104_ENSEMBLE.md) fits 20
+independent all-replay average policies, averages their action probabilities, and
+compares the ensemble with saved P104 and Fell Omen 2 on fresh paired deals.
+Its excluded pilot measures throughput and fixes the confirmation sample size.
+
 For a small follow-up using the already captured regret targets, see the
 [captured regret-target diagnostic](docs/REGRET_TARGET_DIAGNOSTIC.md). It separates
 within-state target variation from sample-mean prediction error, conditionally

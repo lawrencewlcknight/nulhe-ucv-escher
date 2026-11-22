@@ -29,6 +29,9 @@ def load_policy(spec, game):
         return AlwaysCallPolicy()
     if kind == "random":
         return UniformPolicy()
+    if kind == "ensemble":
+        from .p104_ensemble import EnsemblePolicy
+        return EnsemblePolicy(game, spec["manifest"])
     if kind == "fo2":
         policy = FellOmen2Policy(game, spec["assets"], free_fold="check")
         atexit.register(policy.close)
@@ -44,6 +47,7 @@ def initialise(specs):
     from multiprocessing.util import Finalize
     torch.set_num_threads(1)
     _policies = {}
+    _initialisation_error = None
     def close():
         for policy in _policies.values():
             if hasattr(policy, "close"):
