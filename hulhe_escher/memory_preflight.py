@@ -6,26 +6,35 @@ import tempfile
 import numpy as np
 import torch
 
-from .config import baseline_config, make_solver
+from .config import baseline_config, smoke_config, make_solver, validate_config
 from .training_state import build_training_state, save_training_state, read_training_state, restore_training_state
 from .train import write_json
 from unbiased_escher.replay_grouping import learner_replay_allocation
 
 
-def probe(output, *, small=False):
+def probe(output, *, small=False, config=None, workers=1, threads=4):
     import psutil
     if not small and psutil.virtual_memory().total < 48*1024**3:
         raise RuntimeError("Full memory preflight requires a VM with at least 48 GiB RAM")
-    config = baseline_config()
+    config = dict(baseline_config() if config is None else config)
+    validate_config(config)
     if small:
+        tiny = smoke_config()
+        for key in ("num_traversals", "advantage_network_train_steps", "baseline_network_train_steps",
+                    "calibration_train_steps", "critic_min_train_steps", "calibration_min_train_steps",
+                    "advantage_batch_size", "baseline_batch_size", "calibration_batch_size"):
+            config[key] = tiny[key]
         for key in ("advantage_buffer_size", "ave_policy_buffer_size", "baseline_buffer_size", "calibration_buffer_size"):
             config[key] = 64
         config["ave_policy_batch_size"] = 8
     config["average_policy_train_steps"] = 2 if small else 500
     config["policy_validation_steps"] = [1, 2] if small else [250, 500]
-    torch.set_num_threads(4)
-    solver = make_solver(config, seed=771, workers=1)
+    torch.set_num_threads(threads)
+    solver = make_solver(config, seed=771, workers=workers)
     try:
+        # Exercise real collection and critic/regret fits before filling replay.
+        # Synthetic rows are then used only for the isolated capacity check.
+        solver.iteration()
         buffers = [solver.ave_policy_trainer.buffer, *[t.buffer for t in solver.regret_trainers],
                    *[m.buffer for m in solver.q_value_trainer.members], solver.calibration_trainer.buffer]
         # Touch every allocated page, not just virtual allocations or occupied early replay.
@@ -64,7 +73,9 @@ def probe(output, *, small=False):
             del restored
         result = dict(dense_replay_bytes=learner_replay_allocation(solver),
                       full_capacity=not small, grouping_and_policy_fit=True, checkpoint_roundtrip=True,
-                      limitations="Synthetic single-learner probe; excludes actor peaks and full critic target caches")
+                      workers=workers, threads=threads,
+                      policy_group_sampling=solver.ave_policy_trainer.last_fit_diagnostics['group_sampling'],
+                      limitations="Real collection followed by synthetic full replay; not a proof of every future collection/cache peak")
         write_json(output, result)
         return result
     finally:
@@ -76,8 +87,13 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--small", action="store_true", help="Offline plumbing test only")
+    p.add_argument("--config", type=Path)
+    p.add_argument("--workers", type=int, default=1)
+    p.add_argument("--threads", type=int, default=4)
     args = p.parse_args(argv)
-    probe(args.output, small=args.small)
+    import json
+    probe(args.output, small=args.small, workers=args.workers, threads=args.threads,
+          config=json.loads(args.config.read_text()) if args.config else None)
 
 
 if __name__ == "__main__":

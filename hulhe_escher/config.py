@@ -32,8 +32,14 @@ def smoke_config():
 
 def validate_config(config):
     expected = baseline_config()
-    if set(config) != set(expected):
+    optional = {"critic_branch_width", "policy_group_sampling"}
+    if not set(expected) <= set(config) or set(config) - set(expected) - optional:
         raise ValueError("Configuration keys differ from the versioned baseline")
+    if "critic_branch_width" in config and (
+            type(config["critic_branch_width"]) is not int or config["critic_branch_width"] <= 0):
+        raise ValueError("critic_branch_width must be a positive integer")
+    if config.get("policy_group_sampling", "uniform") not in ("uniform", "objective_mass"):
+        raise ValueError("Unknown policy_group_sampling")
     for key in ("advantage_buffer_size", "ave_policy_buffer_size", "baseline_buffer_size",
                 "calibration_buffer_size", "num_traversals", "advantage_batch_size",
                 "ave_policy_batch_size", "baseline_batch_size", "calibration_batch_size",

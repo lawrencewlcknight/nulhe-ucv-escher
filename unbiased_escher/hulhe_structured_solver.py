@@ -88,6 +88,8 @@ class StructuredHULHEAveragePolicyTrainer(
         replay_seed: int,
         validation_fraction: float = 0.05,
         validation_steps=(2500, 5000, 10000, 20000),
+        policy_group_sampling="uniform",
+        policy_sampling_seed=0,
         **kwargs,
     ):
         self.feature_encoder = feature_encoder
@@ -96,10 +98,17 @@ class StructuredHULHEAveragePolicyTrainer(
         self.replay_seed = int(replay_seed)
         self.validation_fraction = validation_fraction
         self.validation_steps = tuple(validation_steps)
+        self.policy_group_sampling = policy_group_sampling
+        self.training_seed = int(policy_sampling_seed)
         super().__init__(*args, **kwargs)
 
     def train_model(self, iteration):
-        return fit_validated_policy(self, iteration)
+        # Match the P104 archived correction: independent sampling for each fit,
+        # reproducible across process exits and restored outer iterations.
+        self.policy_sampling_seed = [self.training_seed, int(iteration)]
+        loss = fit_validated_policy(self, iteration)
+        self.last_fit_diagnostics["policy_sampling_seed"] = self.policy_sampling_seed
+        return loss
 
     def get_infostate_tensor(self, state, player=None):
         return self.feature_encoder.information_state(state, player)
@@ -259,6 +268,8 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
         self,
         *args,
         structured_branch_width: int = 64,
+        critic_branch_width: int | None = None,
+        policy_group_sampling: str = "uniform",
         critic_network_layers=None,
         calibration_network_layers=None,
         calibration_branch_width: int | None = None,
@@ -279,6 +290,11 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
         self.policy_validation_fraction = policy_validation_fraction
         self.policy_validation_steps = tuple(policy_validation_steps)
         self.structured_branch_width = int(structured_branch_width)
+        self.critic_branch_width = (self.structured_branch_width if critic_branch_width is None
+                                    else int(critic_branch_width))
+        if policy_group_sampling not in ("uniform", "objective_mass"):
+            raise ValueError("Unknown policy group sampler")
+        self.policy_group_sampling = policy_group_sampling
         # Optional overrides preserve the inherited architecture for callers
         # using the old constructor. The versioned baseline sets each explicitly.
         self.critic_network_layers = (
@@ -292,7 +308,7 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
             else int(calibration_branch_width)
         )
         self.feature_replay_seed = int(kwargs.get("seed", 0))
-        if min(self.structured_branch_width, self.calibration_branch_width) <= 0:
+        if min(self.structured_branch_width, self.calibration_branch_width, self.critic_branch_width) <= 0:
             raise ValueError("Structured branch widths must be positive")
         super().__init__(*args, **kwargs)
         if self.average_policy_loss != GROUPED_SOFT_TARGET_CROSS_ENTROPY:
@@ -341,6 +357,8 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
             replay_seed=self.feature_replay_seed + 100,
             validation_fraction=self.policy_validation_fraction,
             validation_steps=self.policy_validation_steps,
+            policy_group_sampling=self.policy_group_sampling,
+            policy_sampling_seed=self.feature_replay_seed,
         )
         random.setstate(rng_after_legacy["python"])
         np.random.set_state(rng_after_legacy["numpy"])
@@ -378,7 +396,7 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
     def init_q_value_trainer(self):
         self.q_value_trainer = StructuredHULHEQEnsemble(
             feature_encoder=self.feature_encoder,
-            branch_width=self.structured_branch_width,
+            branch_width=self.critic_branch_width,
             replay_seed=self.feature_replay_seed + 300,
             target_average_window=self.critic_target_average_window,
             ensemble_size=self.q_ensemble_size,
