@@ -185,7 +185,8 @@ def test_batch_rejects_unsafe_or_invalid_inputs_before_build(tmp_path,override):
     assert not output.exists()
 
 
-def test_archived_iteration_capture_leaves_source_unchanged(tmp_path):
+@pytest.mark.parametrize('all_regrets', [False, True])
+def test_archived_iteration_capture_leaves_source_unchanged(tmp_path, all_regrets):
     repository=Path(__file__).resolve().parents[1]
     source=tmp_path/'source'
     result=subprocess.run([sys.executable,'-m','hulhe_escher.train','--smoke','--seed','53',
@@ -194,9 +195,11 @@ def test_archived_iteration_capture_leaves_source_unchanged(tmp_path):
     assert result.returncode==0,result.stdout[-3000:]+result.stderr[-3000:]
     state=source/'state_000001'; before={str(p):sha256_file(p) for p in state.rglob('*') if p.is_file()}
     output=tmp_path/'upstream'
-    result=subprocess.run([sys.executable,str(repository/'hulhe_escher/bottleneck_iteration.py'),
+    command=[sys.executable,str(repository/'hulhe_escher/bottleneck_iteration.py'),
         '--source',str(repository),'--state',str(state),'--contract',str(source/'manifest.json'),
-        '--policy',str(source/'policy_000001.pkl'),'--output',str(output)],
+        '--policy',str(source/'policy_000001.pkl'),'--output',str(output)]
+    if all_regrets: command += ['--capture-all-regrets','--save-regret-models','--skip-control-probe']
+    result=subprocess.run(command,
         cwd=repository,capture_output=True,text=True,timeout=90)
     assert result.returncode==0,result.stdout[-5000:]+result.stderr[-5000:]
     report=json.loads((output/'report.json').read_text())
@@ -204,10 +207,28 @@ def test_archived_iteration_capture_leaves_source_unchanged(tmp_path):
     assert len(report['captures'])==4
     assert before=={str(p):sha256_file(p) for p in state.rglob('*') if p.is_file()}
     for row in report['captures']:
-        assert row['sampled_rows']<=4096 and np.isfinite(row['after_mse'])
+        assert np.isfinite(row['after_mse'])
+        if all_regrets and row['name'].startswith('regret_'):
+            assert row['sampled_rows']==row['rows']
+            for phase,checksum in row['model_snapshots'].items():
+                path=output/f'{row["name"]}_models_{phase}.pt'
+                assert sha256_file(path)==checksum
+                snapshot=torch.load(path,map_location='cpu',weights_only=False)
+                assert snapshot['kind']=='diagnostic_regret_snapshot' and snapshot['iteration']==2
+            assert sha256_file(output/f'{row["name"]}_after.npz')==row['after_sha256']
+        else:
+            assert row['sampled_rows']<=4096
         arrays=np.load(output/row['artifact'])
         assert np.isfinite(arrays['target']).all()
     assert not list(output.glob('state_*'))
+    if all_regrets:
+        assert not report['trajectory_ids_available'] and 'root_control_variance' not in report
+        from hulhe_escher.p104_regret import run as diagnose
+        diagnostic=diagnose(output,state,source/'policy_000001.pkl',tmp_path/'diagnostic',
+                            threads=1,smoke=True,max_seconds=60)
+        assert diagnostic['status']=='COMPLETE' and len(diagnostic['exports'])==2
+        assert diagnostic['capture_iteration']==2
+        assert before=={str(p):sha256_file(p) for p in state.rglob('*') if p.is_file()}
 
 
 def test_cloud_publishes_results_only_and_surfaces_failures(tmp_path,monkeypatch):

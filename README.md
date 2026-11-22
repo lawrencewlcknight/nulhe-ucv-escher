@@ -394,6 +394,17 @@ The [P80 position audit](docs/P80_POSITION_INVESTIGATION.md) repeats the common-
 diagnostic at P80 and compares P80 with P56 on the frozen P56 development library,
 holding the P56 opponent and ranges fixed. It runs as a separate Google Batch job.
 
+The [two P104 diagnostic experiments](docs/P104_DIAGNOSTICS.md) independently test
+all-replay policy extraction (including earlier stopping checkpoints and fresh
+paired matches) and investigate regret-target noise with conditional fitting.
+Both use frozen P56 river panels and preserve the P104 source and continuation.
+
+For a small follow-up using the already captured regret targets, see the
+[captured regret-target diagnostic](docs/REGRET_TARGET_DIAGNOSTIC.md). It separates
+within-state target variation from sample-mean prediction error, conditionally
+compares additional fitting with a function-preserving capacity expansion, and
+checks common river decisions without new self-play or full replay downloads.
+
 The [P56 versus corrected P32 comparison](docs/P32_CORRECTED_VS_P56.md) is an
 evaluation-only Google Batch experiment using both saved corrected P32 refits,
 fresh duplicate deals, and a predeclared equal-weight primary comparison.

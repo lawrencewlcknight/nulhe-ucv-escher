@@ -12,7 +12,8 @@ import sys
 import time
 
 
-def run(source, state, contract, policy, output, *, before_iteration=None, after_iteration=None):
+def run(source, state, contract, policy, output, *, before_iteration=None, after_iteration=None,
+        capture_all_regrets=False, save_regret_models=False, control_probe=True):
     sys.path.insert(0,str(Path(source).resolve()))
     from importlib.metadata import version
     import numpy as np
@@ -35,7 +36,10 @@ def run(source, state, contract, policy, output, *, before_iteration=None, after
     report=dict(status='RESTORING',source_fingerprint=source_fingerprint(),runtime=runtime,
         source_policy_sha256=sha256_file(policy),source_manifest_sha256=sha256_file(Path(state)/'manifest.json'),
         scope='One isolated production-sized iteration; no downstream policy refit or reusable continuation saved',
-        captures=[],phases=[],variance_note='Residual/disagreement/importance-correction statistics are diagnostic signals, not a causal estimate of variance reduction or proof that Bellman targets are correct.')
+        captures=[],phases=[],capture_all_regrets=capture_all_regrets,
+        trajectory_ids_available=False,
+        dependence_note='Archived replay does not retain trajectory/worker identifiers. IID mean-noise estimates are sensitivity scales, not cluster-valid confidence intervals.',
+        variance_note='Residual/disagreement/importance-correction statistics are diagnostic signals, not a causal estimate of variance reduction or proof that Bellman targets are correct.')
     write_json(output/'report.json',report)
     diagnostic_seconds=0.
     def summary(values):
@@ -47,7 +51,8 @@ def run(source, state, contract, policy, output, *, before_iteration=None, after
     def capture(trainer,kind,index,iteration):
         tick=time.monotonic(); size=len(trainer.buffer)
         if not size: return None
-        ids=np.sort(np.random.default_rng(9300+index+(100 if kind=='critic' else 0)).choice(size,min(size,4096),replace=False))
+        ids=(np.arange(size) if kind=='regret' and capture_all_regrets else
+             np.sort(np.random.default_rng(9300+index+(100 if kind=='critic' else 0)).choice(size,min(size,4096),replace=False)))
         if kind=='regret':
             x=torch.as_tensor(trainer.buffer.infostate_buf[ids]); mask=torch.as_tensor(trainer.buffer.q_value_mask_buf[ids])
             values=torch.as_tensor(trainer.buffer.q_value_buf[ids]); age=(iteration-1)**trainer.alpha
@@ -68,6 +73,10 @@ def run(source, state, contract, policy, output, *, before_iteration=None, after
             legal=np.ones(len(ids),bool)
             predict=lambda:trainer.model(x).gather(1,action[:,None]).squeeze(1)
         name=f'{kind}_{index}'
+        if kind=='regret' and save_regret_models:
+            torch.save(dict(kind='diagnostic_regret_snapshot',iteration=iteration,
+                model=trainer.model.state_dict(),target_model=trainer.target_model.state_dict(),
+                optimizer=trainer.optimizer.state_dict()),output/f'{name}_models_before.pt')
         arrays.update(row_indices=ids,target=target.numpy(),before=before.numpy())
         # Stored before calling the original learner. Captures are bounded, not full replay copies.
         np.savez_compressed(output/f'{name}_before.npz',**arrays)
@@ -113,6 +122,13 @@ def run(source, state, contract, policy, output, *, before_iteration=None, after
                         after_error=summary((after-target.numpy())[legal]),
                         note='Same sampled replay rows before/after fitting; in-sample approximation, not held-out accuracy')
                     np.savez_compressed(output/f'{kind}_{index}_after.npz',prediction=after)
+                    row['after_sha256']=sha256_file(output/f'{kind}_{index}_after.npz')
+                    if kind=='regret' and save_regret_models:
+                        torch.save(dict(kind='diagnostic_regret_snapshot',iteration=iteration,
+                            model=trainer.model.state_dict(),optimizer=trainer.optimizer.state_dict()),
+                            output/f'{kind}_{index}_models_after.pt')
+                        row['model_snapshots']={phase:sha256_file(output/f'{kind}_{index}_models_{phase}.pt')
+                                                for phase in ('before','after')}
                     diagnostic_seconds+=time.monotonic()-tick
                 write_json(output/'report.json',report)
                 return result
@@ -127,7 +143,7 @@ def run(source, state, contract, policy, output, *, before_iteration=None, after
             minimum_sampling_probability=solver._minimum_sample_probability)
         if after_iteration is not None:
             after_iteration(solver)
-        report['root_control_variance']=root_control_variance(solver)
+        if control_probe: report['root_control_variance']=root_control_variance(solver)
     except BaseException as exc:
         report.update(status='FAILED',error=f'{type(exc).__name__}: {exc}'); raise
     finally:
@@ -213,6 +229,9 @@ def root_control_variance(solver, repeats=64):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     for n in ('source','state','contract','policy','output'): p.add_argument('--'+n,type=Path,required=True)
+    p.add_argument('--capture-all-regrets',action='store_true')
+    p.add_argument('--save-regret-models',action='store_true')
+    p.add_argument('--skip-control-probe',dest='control_probe',action='store_false')
     run(**vars(p.parse_args()))
 
 if __name__=='__main__': main()
