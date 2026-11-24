@@ -34,6 +34,9 @@ class _StructuredModelMixin:
     structured_branch_width: int
 
     def init_model(self):
+        if getattr(self, "regret_policy_architecture", "plain") == "protected_sequential_v1":
+            from hulhe_escher.sequential_model import ProtectedSequentialNetwork
+            return ProtectedSequentialNetwork(self.feature_layout).to(self.device)
         model_class = StructuredHULHEMLP
         layers = self.network_layers
         if getattr(self, "regret_policy_architecture", "plain") == "deep_residual_v1":
@@ -299,7 +302,7 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
         policy_validation_steps=(2500, 5000, 10000, 20000),
         **kwargs,
     ):
-        if regret_policy_architecture not in ("plain", "deep_residual_v1", "hybrid_residual_v1"):
+        if regret_policy_architecture not in ("plain", "deep_residual_v1", "hybrid_residual_v1", "protected_sequential_v1"):
             raise ValueError("Unknown regret/policy architecture")
         self.regret_policy_architecture = regret_policy_architecture
         self.feature_encoder = make_feature_encoder(feature_encoder_id)

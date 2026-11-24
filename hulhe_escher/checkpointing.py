@@ -162,6 +162,13 @@ class LoadedHULHEPolicy(policy.Policy):
                 branch_width=int(model_metadata["branch_width"]))
             if self.model.checkpoint_metadata() != model_metadata:
                 raise ValueError("Hybrid checkpoint architecture metadata mismatch")
+        elif model_metadata.get("type") == "structured_hulhe_protected_sequential_v1":
+            from .sequential_model import ProtectedSequentialNetwork
+            if self.feature_encoder is None:
+                raise ValueError("Sequential checkpoint has no feature encoder")
+            self.model = ProtectedSequentialNetwork(self.feature_encoder.policy_layout)
+            if self.model.checkpoint_metadata() != model_metadata:
+                raise ValueError("Sequential checkpoint architecture metadata mismatch")
         elif model_metadata.get("type") == "hulhe_diagnostic_residual_v1":
             from .diagnostic_model import ResidualPolicy
             if (self.feature_encoder is None or model_metadata["layout"] !=

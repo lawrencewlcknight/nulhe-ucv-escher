@@ -39,8 +39,15 @@ def validate_config(config):
             type(config["critic_branch_width"]) is not int or config["critic_branch_width"] <= 0):
         raise ValueError("critic_branch_width must be a positive integer")
     architecture = config.get("regret_policy_architecture", "plain")
-    if architecture not in ("plain", "deep_residual_v1", "hybrid_residual_v1"):
+    if architecture not in ("plain", "deep_residual_v1", "hybrid_residual_v1", "protected_sequential_v1"):
         raise ValueError("Unknown regret_policy_architecture")
+    if architecture == "protected_sequential_v1" and (
+            config["num_layers"] != 1 or config["num_hiddens"] != 384
+            or config["average_policy_network_layers"] != [384]
+            or config["structured_branch_width"] != 128
+            or config.get("policy_group_sampling") != "objective_mass"
+            or not config["cache_frozen_regret_targets"]):
+        raise ValueError("protected_sequential_v1 requires its versioned descriptor and corrected cached fitting")
     if architecture == "deep_residual_v1" and (
             config["num_layers"] != 10 or config["num_hiddens"] != 256
             or config["average_policy_network_layers"] != [256] * 10

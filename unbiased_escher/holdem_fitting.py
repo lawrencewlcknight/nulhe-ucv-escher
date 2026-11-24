@@ -68,6 +68,17 @@ def fit_cached_regrets(trainer, iteration):
         "cached_rows": size, "cache_bytes": targets.numel() * targets.element_size(),
         "cache_build_seconds": time.perf_counter() - started, "cache_lifetime": "this_fit_only",
     }
+    if getattr(trainer, "regret_policy_architecture", "plain") == "protected_sequential_v1":
+        from hulhe_escher.sequential_training import ProtectedFit
+        fit = ProtectedFit(trainer, trainer.buffer.infostate_buf[:size], targets,
+            torch.as_tensor(trainer.buffer.q_value_mask_buf[:size], device=trainer.device),
+            np.arange(size), rng=trainer.buffer.rng, kind="regret")
+        for step in range(1, trainer.train_steps + 1):
+            loss = fit.update(step)
+        fit.finish()
+        trainer.last_fit_stats["protected_training"] = fit.diagnostics()
+        trainer.target_model.load_state_dict(trainer.model.state_dict())
+        return float(loss.item())
     for _ in range(trainer.train_steps):
         indices = (slice(0, size) if trainer.batch_size >= size else
                    trainer.buffer.rng.choice(size, size=trainer.batch_size, replace=False))
@@ -124,15 +135,23 @@ def fit_validated_policy(trainer, iteration):
     sampler = PolicyGroupSampler(train_ids, weights, batch_size,
         mode=getattr(trainer, "policy_group_sampling", "uniform"),
         seed=getattr(trainer, "policy_sampling_seed", 0))
+    protected = None
+    if getattr(trainer, "regret_policy_architecture", "plain") == "protected_sequential_v1":
+        from hulhe_escher.sequential_training import ProtectedFit
+        protected = ProtectedFit(trainer, features, targets, masks, train_ids,
+            rng=np.random.default_rng(trainer.policy_sampling_seed), kind="policy", weights=weights)
     trainer.model.train()
     for step in range(1, trainer.train_steps + 1):
-        idx, loss_weights = sampler.sample()
-        logits = trainer.model(features[idx]).masked_fill(masks[idx] != 1, -1e20)
-        losses = -(targets[idx] * torch.log_softmax(logits, -1)).sum(-1)
-        loss = (losses * loss_weights).mean()
-        trainer.optimizer.zero_grad()
-        loss.backward()
-        trainer.optimizer.step()
+        if protected is not None:
+            loss = protected.update(step)
+        else:
+            idx, loss_weights = sampler.sample()
+            logits = trainer.model(features[idx]).masked_fill(masks[idx] != 1, -1e20)
+            losses = -(targets[idx] * torch.log_softmax(logits, -1)).sum(-1)
+            loss = (losses * loss_weights).mean()
+            trainer.optimizer.zero_grad()
+            loss.backward()
+            trainer.optimizer.step()
         if step in checkpoints and validating:
             trainer.model.eval()
             score = weighted_policy_ce(trainer.model, features, targets, masks, weights,
@@ -145,6 +164,8 @@ def fit_validated_policy(trainer, iteration):
                 best = (deepcopy(trainer.model.state_dict()), deepcopy(trainer.optimizer.state_dict()),
                         step, float(loss.item()))
             trainer.model.train()
+    if protected is not None:
+        protected.finish()
     if best is not None:
         model, optimizer, selected_step, selected_loss = best
         trainer.model.load_state_dict(model)
@@ -160,4 +181,6 @@ def fit_validated_policy(trainer, iteration):
         "validation_history": history,
         "group_sampling": sampler.mode,
     }
+    if protected is not None:
+        trainer.last_fit_diagnostics["protected_training"] = protected.diagnostics()
     return selected_loss

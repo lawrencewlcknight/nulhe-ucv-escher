@@ -100,7 +100,8 @@ def training_diagnostics(root):
 
 def run_experiment(output, *, stage_seconds=14400, workers=8, threads=4, seed=20261115,
                    smoke=False, skip_preflight=False, local_workers=8,
-                   training_wall_seconds=43200, evaluation_seconds=7200, upload_uri=None):
+                   training_wall_seconds=43200, evaluation_seconds=7200, upload_uri=None,
+                   config_path=None, verify_checkpoints=False):
     if not all(math.isfinite(x) and x > 0 for x in (stage_seconds, training_wall_seconds, evaluation_seconds)):
         raise ValueError("Time budgets must be finite and positive")
     if min(workers, threads, local_workers) < 1:
@@ -124,7 +125,9 @@ def run_experiment(output, *, stage_seconds=14400, workers=8, threads=4, seed=20
                   "--iterations", "1000000", "--workers", str(workers), "--threads", str(threads),
                   "--seed", str(seed), "--policy-every", "0", "--policy-seconds", "1000000000",
                   "--additional-training-seconds", str(stage_seconds)]
-        if smoke:
+        if config_path is not None:
+            common += ["--config", str(Path(config_path).resolve())]
+        elif smoke:
             common.append("--smoke")
         for label in ("P4", "P8"):
             remaining = training_wall_seconds-(time.monotonic()-started)
@@ -135,6 +138,20 @@ def run_experiment(output, *, stage_seconds=14400, workers=8, threads=4, seed=20
             if result["returncode"] != 0:
                 raise RuntimeError(f"Training stage {label} failed or exceeded wall limit; see its log")
             checkpoint = publish_policy(training, root, label)
+            if smoke:
+                checkpoint["smoke"] = True
+                write_json(root / f"{label}.json", checkpoint)
+            if verify_checkpoints:
+                remaining = training_wall_seconds-(time.monotonic()-started)
+                if remaining <= 0:
+                    raise TimeoutError("No budget for recovery verification")
+                source = Path(__file__).resolve().parents[1]
+                verified = run_child([sys.executable, str(source / "hulhe_escher/verify_recovery.py"),
+                    "--source", str(source), "--training", str(training),
+                    "--policy", str(root / f"{label}.pkl"), "--report", str(root / f"reload-{label}.json")],
+                    root / f"reload-{label}.log", timeout=min(1800, remaining))
+                if verified["returncode"] != 0 or verified.get("timed_out"):
+                    raise RuntimeError(f"{label} full recovery verification failed")
             previous = report["checkpoints"].get("P4", {}).get("active_seconds", 0) if label == "P8" else 0
             if checkpoint["active_seconds"]-previous < stage_seconds:
                 raise RuntimeError("Iteration ceiling reached before the requested active training budget")

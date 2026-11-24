@@ -1,4 +1,4 @@
-"""Diagnostic-only sequential street specialists; no production loader changes."""
+"""Sequential street specialists for diagnostics and opt-in protected training."""
 import torch
 from torch import nn
 
@@ -61,3 +61,11 @@ class SequentialStreetNetwork(StructuredHULHEMLP):
                     branch_width=128, width=384, shared_inner=192, specialist_inner=224,
                     stages=4, residual_scale=.5, parameters=sum(p.numel() for p in self.parameters()),
                     diagnostic_only=True)
+
+
+class ProtectedSequentialNetwork(SequentialStreetNetwork):
+    """Versioned production architecture; diagnostic checkpoints remain distinct."""
+    def checkpoint_metadata(self):
+        metadata = super().checkpoint_metadata()
+        metadata.update(type='structured_hulhe_protected_sequential_v1', diagnostic_only=False)
+        return metadata

@@ -405,6 +405,13 @@ regret targets. Two fitting seeds compare unrestricted training, selective stree
 updates and two protection strengths, with held-out errors and interference checks.
 This bounded Batch diagnostic performs no new self-play or production changes.
 
+The [protected sequential four-plus-four learning experiment](docs/SEQUENTIAL_LEARNING_EXPERIMENT.md)
+trains this architecture from scratch for eight active hours, with P4/P8 policies,
+a real process restart, verified full recovery, P8-versus-P4 and control matches,
+and independent Fell Omen 2 evaluation. Protected selective fitting applies to
+both regret and average-policy networks. Preparation is offline; cloud submission
+is explicit, using separate trainer and evaluator Google Batch jobs.
+
 The [Wide/Deep-P32 versus corrected smaller P32 experiment](docs/SCALING_CORRECTED_COMPARISON.md)
 evaluates both final scaled policies against both saved corrected P32 refits,
 using shared duplicate deals and two multiplicity-adjusted primary tests.
