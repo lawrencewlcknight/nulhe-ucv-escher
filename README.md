@@ -399,6 +399,12 @@ all-replay policy extraction (including earlier stopping checkpoints and fresh
 paired matches) and investigate regret-target noise with conditional fitting.
 Both use frozen P56 river panels and preserve the P104 source and continuation.
 
+The [sequential specialist frozen-target checks](docs/SEQUENTIAL_FROZEN_CHECKS.md)
+test the proposed 1.50M-parameter network on saved P104 policy replay and captured
+regret targets. Two fitting seeds compare unrestricted training, selective street
+updates and two protection strengths, with held-out errors and interference checks.
+This bounded Batch diagnostic performs no new self-play or production changes.
+
 The [Wide/Deep-P32 versus corrected smaller P32 experiment](docs/SCALING_CORRECTED_COMPARISON.md)
 evaluates both final scaled policies against both saved corrected P32 refits,
 using shared duplicate deals and two multiplicity-adjusted primary tests.
