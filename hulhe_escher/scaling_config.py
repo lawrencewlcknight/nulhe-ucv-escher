@@ -42,3 +42,21 @@ DEEP_COMPARISON_CAVEAT = (
     "not depth alone. Equal active hours are not equal samples or FLOPs. One seed "
     "supports run-specific conclusions, not training-seed generalization."
 )
+
+
+def hybrid_scaling_config(*, small=False):
+    config = scaling_config(small=small)
+    config.update(num_layers=13, num_hiddens=256,
+                  average_policy_network_layers=[512, 256, 512] + [256] * 10,
+                  regret_policy_architecture="hybrid_residual_v1")
+    validate_config(config)
+    return config
+
+
+HYBRID_COMPARISON_CAVEAT = (
+    "Fresh hybrid versus deep training holds non-architecture settings and hardware fixed. "
+    "Equal active hours do not imply equal samples or FLOPs. One training seed gives "
+    "run-specific evidence. Corrected smaller P32 uses historical training followed by "
+    "corrected policy refits, so that comparison also differs in replay and training recipe. "
+    "Strategic positions are development diagnostics, not whole-game exploitability."
+)

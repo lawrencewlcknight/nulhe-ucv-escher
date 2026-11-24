@@ -39,13 +39,18 @@ def validate_config(config):
             type(config["critic_branch_width"]) is not int or config["critic_branch_width"] <= 0):
         raise ValueError("critic_branch_width must be a positive integer")
     architecture = config.get("regret_policy_architecture", "plain")
-    if architecture not in ("plain", "deep_residual_v1"):
+    if architecture not in ("plain", "deep_residual_v1", "hybrid_residual_v1"):
         raise ValueError("Unknown regret_policy_architecture")
     if architecture == "deep_residual_v1" and (
             config["num_layers"] != 10 or config["num_hiddens"] != 256
             or config["average_policy_network_layers"] != [256] * 10
             or config["structured_branch_width"] != 128):
         raise ValueError("deep_residual_v1 requires 256 x 10 trunks and 128-wide branches")
+    if architecture == "hybrid_residual_v1" and (
+            config["num_layers"] != 13 or config["num_hiddens"] != 256
+            or config["average_policy_network_layers"] != [512, 256, 512] + [256] * 10
+            or config["structured_branch_width"] != 128):
+        raise ValueError("hybrid_residual_v1 requires the versioned 13-layer hybrid trunk and 128-wide branches")
     if config.get("policy_group_sampling", "uniform") not in ("uniform", "objective_mass"):
         raise ValueError("Unknown policy_group_sampling")
     for key in ("advantage_buffer_size", "ave_policy_buffer_size", "baseline_buffer_size",

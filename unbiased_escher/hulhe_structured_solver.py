@@ -35,12 +35,20 @@ class _StructuredModelMixin:
 
     def init_model(self):
         model_class = StructuredHULHEMLP
+        layers = self.network_layers
         if getattr(self, "regret_policy_architecture", "plain") == "deep_residual_v1":
             from hulhe_escher.deep_model import DeepResidualHULHEMLP
             model_class = DeepResidualHULHEMLP
+        elif getattr(self, "regret_policy_architecture", "plain") == "hybrid_residual_v1":
+            from hulhe_escher.hybrid_model import HybridResidualHULHEMLP, HYBRID_LAYERS
+            # The inherited regret trainer represents trunks with a uniform
+            # width/depth descriptor; this versioned selector supplies actual widths.
+            if list(layers) not in ([256] * 13, HYBRID_LAYERS):
+                raise ValueError('Invalid hybrid network descriptor')
+            model_class, layers = HybridResidualHULHEMLP, HYBRID_LAYERS
         return model_class(
             self.feature_layout,
-            self.network_layers,
+            layers,
             self.output_size,
             branch_width=self.structured_branch_width,
         ).to(self.device)
@@ -291,7 +299,7 @@ class StructuredHULHEGroupedWideUCVEscher(GroupedWideUnbiasedControlVariateEsche
         policy_validation_steps=(2500, 5000, 10000, 20000),
         **kwargs,
     ):
-        if regret_policy_architecture not in ("plain", "deep_residual_v1"):
+        if regret_policy_architecture not in ("plain", "deep_residual_v1", "hybrid_residual_v1"):
             raise ValueError("Unknown regret/policy architecture")
         self.regret_policy_architecture = regret_policy_architecture
         self.feature_encoder = make_feature_encoder(feature_encoder_id)

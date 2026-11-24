@@ -428,4 +428,9 @@ The [wide32 experiment](docs/WIDE32_SCALING.md) trains 512×3 regret/policy trun
 The [deep32 experiment](docs/DEEP32_SCALING.md) substitutes approximately
 parameter-matched 256×10 pre-activation residual trunks, preserving the rest of
 the fresh 32-hour recipe and evaluating directly against matching wide policies.
-Both run as bounded Google Batch jobs; preparation does not submit compute.
+
+The [hybrid32 experiment](docs/HYBRID32_SCALING.md) combines a 512-wide residual
+stage with four 256-wide residual blocks and a direct wide-to-output connection.
+It starts fresh for 32 active hours, exports P8/P14/P20/P26/P32, and compares its
+final policy with Deep-P32, both corrected smaller-P32 refits and Fell Omen 2.
+All three run as bounded Google Batch jobs; preparation does not submit compute.

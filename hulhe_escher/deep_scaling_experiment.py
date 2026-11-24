@@ -16,7 +16,7 @@ from .scaling_experiment import transfer, sync_analysis, memory_gate, train_stag
 from .train import write_json, source_fingerprint
 
 
-def fetch_policies(root, uri, expected_source, *, deep=False):
+def fetch_policies(root, uri, expected_source, *, deep=False, expected_config=None):
     """Freeze policies against publication hashes; missing exports defer evaluation.
 
     Permission/network failures are errors, never interpreted as unfinished
@@ -26,7 +26,8 @@ def fetch_policies(root, uri, expected_source, *, deep=False):
     root.mkdir(parents=True, exist_ok=True)
     transfer('cp', uri + '/launch.json', root / 'source-launch.json')
     plan = json.loads((root / 'source-launch.json').read_text())
-    expected_config = deep_scaling_config() if deep else scaling_config()
+    if expected_config is None:
+        expected_config = deep_scaling_config() if deep else scaling_config()
     if (plan['source_sha256'] != expected_source or plan['config'] != expected_config
             or plan['seed'] != 20261115 or plan['collection_workers'] != 8
             or plan['training_threads'] != 8 or plan['machine'] != 'c4-standard-16'

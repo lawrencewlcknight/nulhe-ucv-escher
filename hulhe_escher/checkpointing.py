@@ -153,6 +153,15 @@ class LoadedHULHEPolicy(policy.Policy):
                 branch_width=int(model_metadata["branch_width"]))
             if self.model.checkpoint_metadata() != model_metadata:
                 raise ValueError("Residual checkpoint architecture metadata mismatch")
+        elif model_metadata.get("type") == "structured_hulhe_hybrid_residual_v1":
+            from .hybrid_model import HybridResidualHULHEMLP
+            if self.feature_encoder is None:
+                raise ValueError("Hybrid checkpoint has no feature encoder")
+            self.model = HybridResidualHULHEMLP(self.feature_encoder.policy_layout,
+                model_metadata["hidden_layers"], int(model_metadata["output_size"]),
+                branch_width=int(model_metadata["branch_width"]))
+            if self.model.checkpoint_metadata() != model_metadata:
+                raise ValueError("Hybrid checkpoint architecture metadata mismatch")
         elif model_metadata.get("type") == "hulhe_diagnostic_residual_v1":
             from .diagnostic_model import ResidualPolicy
             if (self.feature_encoder is None or model_metadata["layout"] !=

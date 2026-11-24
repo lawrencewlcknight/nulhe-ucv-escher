@@ -127,7 +127,7 @@ def train_stages(root, config_path, *, workers=8, threads=8, seed=20261115,
 
 
 def evaluate(root, *, workers=8, seconds=43200, smoke=False, matches=None,
-             comparison_caveat=COMPARISON_CAVEAT):
+             comparison_caveat=COMPARISON_CAVEAT, seed_base=61001):
     # One primary historical comparison and five adjusted within-run tests.
     # Independent pilot/confirmation deals, duplicate seats, no optional stopping.
     labels = [f'P{h}' for h in CHECKPOINT_HOURS]
@@ -147,7 +147,7 @@ def evaluate(root, *, workers=8, seconds=43200, smoke=False, matches=None,
         destination = root / 'evaluation' / name
         command = [sys.executable, '-m', 'hulhe_escher.learning_evaluate', '--a', str(root / f'{a}.pkl'),
                    '--b', str(b), '--output', str(destination), '--workers', str(workers),
-                   '--seed', str(61001 + index*10), '--max-seconds', str(max(.1, budget-30)),
+                   '--seed', str(seed_base + index*10), '--max-seconds', str(max(.1, budget-30)),
                    '--alpha', str(alpha), '--pilot-pairs', '4' if smoke else '10000',
                    '--minimum', '8' if smoke else '100000', '--maximum', '8' if smoke else '1000000',
                    '--effect-bb100', '2']
