@@ -1,0 +1,44 @@
+{
+  "fit_seeds": [
+    1701,
+    1702
+  ],
+  "files": {
+    "P32-fit.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-sampler-p32-20261117-145836/fit/experiment.json",
+      "sha256": "155cbc7c81c84d71972f5dfa42fafa6a4ec4a64866acefe587691cb2255ef8c8"
+    },
+    "P32-corrected-1701.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-sampler-p32-20261117-145836/fit/objective_mass_seed1701.pkl",
+      "sha256": "87ac87878cf5ca1ab24346f152601824717d860f2cac73a8988599fceccbb120"
+    },
+    "P32-corrected-1702.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-sampler-p32-20261117-145836/fit/objective_mass_seed1702.pkl",
+      "sha256": "1f20b88eea2dc1fbb2d9697d4567eca10cd40b2dd1d0f683676fd83df4ec573b"
+    },
+    "Wide-P32.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-wide32-batch-20261122/P32.pkl",
+      "sha256": "7c50fc70baa7187028cb69180477989c53aea3ae3d73b931e675bdce9a01ffeb"
+    },
+    "Wide-P32-launch.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-wide32-batch-20261122/launch.json",
+      "sha256": "9ec728ef1324b7397f43bace1ca959c1485322c580a73af2f2a02f884f27a39d"
+    },
+    "Wide-P32-scaling.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-wide32-batch-20261122/scaling.json",
+      "sha256": "1e191ac9e2ccb571dfb188925920114aa2833e86559d11c3937f838c9fde2dd2"
+    },
+    "Deep-P32.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-deep32-batch-20261122/P32.pkl",
+      "sha256": "078ec1a3f28b18e160f5fe5ea2c406b8e485e3aadf30c31124e0ffa64dcd8546"
+    },
+    "Deep-P32-launch.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-deep32-batch-20261122/launch.json",
+      "sha256": "399fb006dfa606e54fe4c05915a0209f8097b0e3770d50cbe3cc50f4b781f99e"
+    },
+    "Deep-P32-scaling.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-deep32-batch-20261122/scaling.json",
+      "sha256": "df9b7b6ee8710543c12e0a9321d764618f27c475ee3aca4cd79dfca023ef7f62"
+    }
+  }
+}

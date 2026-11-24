@@ -399,6 +399,14 @@ all-replay policy extraction (including earlier stopping checkpoints and fresh
 paired matches) and investigate regret-target noise with conditional fitting.
 Both use frozen P56 river panels and preserve the P104 source and continuation.
 
+The [Wide/Deep-P32 versus corrected smaller P32 experiment](docs/SCALING_CORRECTED_COMPARISON.md)
+evaluates both final scaled policies against both saved corrected P32 refits,
+using shared duplicate deals and two multiplicity-adjusted primary tests.
+
+The [P104 regret-supervision audit](docs/P104_SUPERVISION.md) uses repeated
+independent samples and exact river references to diagnose target noise,
+sampling ranges and equal-compute estimator improvements without retraining.
+
 The [P104 twenty-network ensemble experiment](docs/P104_ENSEMBLE.md) fits 20
 independent all-replay average policies, averages their action probabilities, and
 compares the ensemble with saved P104 and Fell Omen 2 on fresh paired deals.
