@@ -434,3 +434,7 @@ stage with four 256-wide residual blocks and a direct wide-to-output connection.
 It starts fresh for 32 active hours, exports P8/P14/P20/P26/P32, and compares its
 final policy with Deep-P32, both corrected smaller-P32 refits and Fell Omen 2.
 All three run as bounded Google Batch jobs; preparation does not submit compute.
+
+The [Wide and Deep P32 +24-hour continuations](docs/SCALED_P32_CONTINUATIONS.md)
+restore each architecture's original full checkpoint and archived trainer, export
+P38/P44/P50/P56, and evaluate progress against its own P32 and Fell Omen 2.

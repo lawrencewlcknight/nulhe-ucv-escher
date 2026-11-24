@@ -33,7 +33,9 @@ def extract_source(archive, destination):
                 shutil.copyfileobj(source,out)
 
 
-def download_source(uri, workspace, expected_p8_sha256, baseline_hours=8):
+def download_source(uri, workspace, expected_p8_sha256, baseline_hours=8, *,
+                    expected_archive_sha256=None, expected_iteration=None,
+                    expected_state_manifest_sha256=None):
     baseline = checkpoint_labels(baseline_hours)[0]
     archive = "source.tar.gz" if baseline_hours == 8 else "training_source.tar.gz"
     root=Path(workspace)
@@ -44,13 +46,23 @@ def download_source(uri, workspace, expected_p8_sha256, baseline_hours=8):
         storage('cp',uri.rstrip('/')+'/'+name,source/name)
     if sha256_file(source/f'{baseline}.pkl') != expected_p8_sha256:
         raise ValueError('Downloaded policy does not match requested baseline')
+    if expected_archive_sha256 and sha256_file(source/archive) != expected_archive_sha256:
+        raise ValueError('Archived trainer checksum mismatch')
     pointer=checked_pointer(source/'training')
     marker=json.loads((source/f'{baseline}.json').read_text())
     if marker['label'] != baseline or marker['recovery'] != pointer['state'] or marker['outer_iteration'] != pointer['iteration']:
         raise ValueError('Requested baseline is not the latest full recovery')
+    if expected_iteration is not None and pointer['iteration'] != expected_iteration:
+        raise ValueError('Requested baseline recovery iteration differs from pin')
     state=source/'training'/pointer['state']
     state.mkdir()
+    if expected_state_manifest_sha256:
+        storage('cp', uri.rstrip('/')+'/training/'+pointer['state']+'/manifest.json', state/'manifest.json')
+        if sha256_file(state/'manifest.json') != expected_state_manifest_sha256:
+            raise ValueError('Pinned recovery manifest mismatch before replay download')
     storage('rsync','--recursive',uri.rstrip('/')+'/training/'+pointer['state'],state)
+    if expected_state_manifest_sha256 and sha256_file(state/'manifest.json') != expected_state_manifest_sha256:
+        raise ValueError('Pinned recovery manifest changed during download')
     trainer=root/'archived-trainer'
     extract_source(source/archive,trainer)
     return source,trainer
@@ -59,7 +71,8 @@ def download_source(uri, workspace, expected_p8_sha256, baseline_hours=8):
 def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
               resume_checkpoint=None, expected_resume_sha256=None,
               training_wall_seconds=108000, baseline_hours=8, corrected_sampler=False,
-              require_corrected_sampler=False, primary_minimum=100000, primary_effect_bb100=2.):
+              require_corrected_sampler=False, primary_minimum=100000, primary_effect_bb100=2.,
+              scaled_variant=None):
     validate_design(0, 8, 10000, primary_minimum, 1000000, 43200, primary_effect_bb100)
     baseline = checkpoint_labels(baseline_hours)[0]
     archive = "source.tar.gz" if baseline_hours == 8 else "training_source.tar.gz"
@@ -72,6 +85,17 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
         raise ValueError('Sampler migration requires a fresh P32 continuation')
     if corrected_sampler and require_corrected_sampler:
         raise ValueError('Select migration or verification of an already corrected trainer')
+    scaled = None
+    if scaled_variant is not None:
+        from .scaled_continuation import source_spec
+        scaled = source_spec(scaled_variant)
+        if (baseline_hours != 32 or corrected_sampler or not require_corrected_sampler
+                or source_uri != scaled['source_uri'] or expected_p8_sha256 != scaled['policy_sha256']):
+            raise ValueError('Scaled continuation must use its pinned corrected P32 source')
+        originals = [source_spec(v)['source_uri'] for v in ('wide', 'deep')]
+        if any(output_uri == uri or output_uri.startswith(uri+'/') or uri.startswith(output_uri+'/')
+               for uri in originals):
+            raise ValueError('Scaled continuation output must preserve both original runs')
     if resume_checkpoint:
         source, trainer = root/'original-run', root/'archived-trainer'
         if sha256_file(source/f'{baseline}.pkl') != expected_p8_sha256:
@@ -79,7 +103,10 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
         if not trainer.is_dir():
             raise ValueError('Original archived trainer is missing')
     else:
-        source,trainer=download_source(source_uri,root,expected_p8_sha256,baseline_hours)
+        options = (dict(expected_archive_sha256=scaled['source_archive_sha256'],
+                        expected_iteration=scaled['iteration'],
+                        expected_state_manifest_sha256=scaled['state_manifest_sha256']) if scaled else {})
+        source,trainer=download_source(source_uri,root,expected_p8_sha256,baseline_hours, **options)
     original_archive_sha256 = sha256_file(source/archive)
     if corrected_sampler:
         from .corrected_continuation import prepare_corrected_source
@@ -87,8 +114,12 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
         for name in ('sampler-migration.json', 'original-P32-verified.json', 'original-P32-verify.log'):
             storage('cp','--if-generation-match=0',root/name,output_uri+'/'+name)
     if require_corrected_sampler:
-        from .corrected_continuation import verify_corrected_source
-        receipt = verify_corrected_source(source, trainer)
+        if scaled:
+            from .scaled_continuation import verify_scaled_source
+            receipt = verify_scaled_source(source, trainer, scaled_variant)
+        else:
+            from .corrected_continuation import verify_corrected_source
+            receipt = verify_corrected_source(source, trainer)
         write_json(root/'sampler-verification.json', receipt)
         storage('cp', root/'sampler-verification.json', output_uri+'/sampler-verification.json')
     # The resumable state belongs to this archived trainer, not to the new
@@ -121,9 +152,11 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
         report=run_continuation(source,trainer,output,upload_uri=output_uri,
             resume_checkpoint=resume_checkpoint, expected_resume_sha256=expected_resume_sha256,
             wall_seconds=training_wall_seconds, baseline_hours=baseline_hours,
-            require_objective_mass=corrected_sampler or require_corrected_sampler)
+            require_objective_mass=corrected_sampler or require_corrected_sampler,
+            verify_each_stage=bool(scaled))
         write_json(output/'provenance.json',dict(source_uri=source_uri,output_uri=output_uri,
             baseline=baseline,expected_baseline_sha256=expected_p8_sha256,original_source_sha256=original_archive_sha256,
+            scaled_variant=scaled_variant,
             policy_group_sampling='objective_mass' if corrected_sampler or require_corrected_sampler else 'archived_trainer',
             training_source_fingerprint=report['training_source_fingerprint'],
             fo2_build_fingerprint=assets['fingerprint']))
@@ -134,7 +167,8 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
             instructions='Restore the latest full state and manifest, use the archived training source and exact runtime; preserve all contract arguments when invoking hulhe_escher.train --resume. Playable policies alone cannot resume training.'))
         sync()
         evaluation=run_suite(output,output/'evaluation',workers=8,max_seconds=43200,assets=root/'fo2-assets',
-            primary_minimum=primary_minimum,primary_effect_bb100=primary_effect_bb100)
+            primary_minimum=primary_minimum,primary_effect_bb100=primary_effect_bb100,
+            extra_seed_offset=scaled['evaluation_seed_offset'] if scaled else 0)
         if evaluation['status'] != 'COMPLETE':
             raise RuntimeError('Continuation evaluation incomplete; inspect evaluation/report.json')
     except Exception as exc:
@@ -162,6 +196,8 @@ def main():
     p.add_argument('--corrected-sampler', action='store_true')
     p.add_argument('--require-corrected-sampler', action='store_true',
                    help='Verify the already corrected archived trainer; do not migrate it again')
+    p.add_argument('--scaled-variant', choices=('wide', 'deep'),
+                   help='Continue the pinned architecture-specific P32 with its original archived trainer')
     run_cloud(**vars(p.parse_args()))
 
 

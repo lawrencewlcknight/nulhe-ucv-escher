@@ -149,7 +149,7 @@ def render(root, report):
 
 def run_suite(experiment, output, *, workers=8, max_seconds=43200,
               assets=DEFAULT_ASSETS, smoke=False, opponent='fo2',
-              primary_minimum=100000, primary_effect_bb100=2.):
+              primary_minimum=100000, primary_effect_bb100=2., extra_seed_offset=0):
     validate_design(0, workers, 10000, primary_minimum, 1000000, max_seconds, primary_effect_bb100)
     root, output = Path(experiment), Path(output)
     training = json.loads((root/'continuation.json').read_text())
@@ -163,7 +163,9 @@ def run_suite(experiment, output, *, workers=8, max_seconds=43200,
     labels = checkpoint_labels(baseline_hours)
     if set(training['checkpoints']) != set(labels):
         raise ValueError('Completed checkpoints differ from the declared continuation grid')
-    seed_offset = 1000*(baseline_hours-8)
+    if type(extra_seed_offset) is not int or extra_seed_offset < 0:
+        raise ValueError('Extra evaluation seed offset must be a nonnegative integer')
+    seed_offset = 1000*(baseline_hours-8) + extra_seed_offset
     validate_design(28301+seed_offset, workers, 4 if smoke else 10000, 8 if smoke else 100000,
                     8 if smoke else 1000000, max_seconds, 2.)
     output.mkdir(parents=True, exist_ok=False)
@@ -178,6 +180,7 @@ def run_suite(experiment, output, *, workers=8, max_seconds=43200,
         primary_time_weight=1. if smoke else primary_minimum/100000,
         power=.8, pilot_excluded=True, workers=workers,
         max_seconds=max_seconds, smoke=smoke,
+        extra_seed_offset=extra_seed_offset,
         head_to_head_pilot_seeds=[28301+seed_offset+10*i for i in range(5)],
         fo2_pilot_seed=29501+seed_offset))
     deadline=time.monotonic()+max_seconds
@@ -238,6 +241,7 @@ def main():
     p.add_argument('--opponent',choices=['fo2','check_call','random'],default='fo2')
     p.add_argument('--primary-minimum',type=int,default=100000)
     p.add_argument('--primary-effect-bb100',type=float,default=2.)
+    p.add_argument('--extra-seed-offset',type=int,default=0)
     result=run_suite(**vars(p.parse_args()))
     if result['status'] != 'COMPLETE':
         raise SystemExit(1)

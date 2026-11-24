@@ -84,7 +84,7 @@ def resume_record(root, contract, baseline, label, expected_sha256, stage_second
 def run_continuation(source_run, trainer_source, output, *, stage_seconds=21600.,
                      wall_seconds=108000., upload_uri=None, allow_smoke=False,
                      resume_checkpoint=None, expected_resume_sha256=None, baseline_hours=8,
-                     require_objective_mass=False):
+                     require_objective_mass=False, verify_each_stage=False):
     if not all(math.isfinite(x) and x > 0 for x in (stage_seconds, wall_seconds)):
         raise ValueError('Time budgets must be positive and finite')
     labels = checkpoint_labels(baseline_hours)
@@ -149,7 +149,7 @@ def run_continuation(source_run, trainer_source, output, *, stage_seconds=21600.
             '--training', str(training), '--policy', str(root / f'{name}.pkl'),
             '--report', str(root / f'{log_prefix}reload-{name}.json')], root / f'{log_prefix}reload-{name}.log',
             timeout=min(1800, remaining), cwd=trainer, env=env)
-        if outcome['returncode'] != 0:
+        if outcome['returncode'] != 0 or outcome.get('timed_out'):
             raise RuntimeError(f'{name} full-state reload verification failed')
     try:
         if not resume_checkpoint:
@@ -188,15 +188,20 @@ def run_continuation(source_run, trainer_source, output, *, stage_seconds=21600.
             outcome = run_child(trainer_command(training, contract, duration),
                 root / f'{log_prefix}train-{label}.log', timeout=remaining, cwd=trainer, env=env)
             report['stages'][label] = outcome
-            if outcome['returncode'] != 0:
+            if outcome['returncode'] != 0 or outcome.get('timed_out'):
                 raise RuntimeError(f'Training {label} failed; see stage log')
             record = publish_policy(training, root, label)
-            if require_objective_mass and record['metrics'].get('policy_validation', {}).get('group_sampling') != 'objective_mass':
-                raise RuntimeError('Exported policy did not use required objective_mass sampling')
+            if require_objective_mass:
+                fit = record['metrics'].get('policy_validation', {})
+                if (fit.get('group_sampling') != 'objective_mass'
+                        or fit.get('policy_sampling_seed') != [contract['seed'], record['outer_iteration']]):
+                    raise RuntimeError('Exported policy did not use required objective_mass sampling and seed')
             if record['active_seconds'] < target or record['outer_iteration'] <= report['checkpoints'][labels[index-1]]['outer_iteration']:
                 raise RuntimeError('Training stage did not reach its target')
             record['target_active_seconds'] = target
             write_json(root / f'{label}.json', record)
+            if verify_each_stage:
+                verify(label)
             report['checkpoints'][label] = record
             previous = record['active_seconds']
             if upload_uri:
@@ -204,7 +209,8 @@ def run_continuation(source_run, trainer_source, output, *, stage_seconds=21600.
             write_json(root / 'continuation.json', report)
         report['status'] = 'VERIFYING_FINAL_RECOVERY'
         write_json(root / 'continuation.json', report)
-        verify(labels[-1])
+        if not verify_each_stage:
+            verify(labels[-1])
         report['status'] = 'TRAINING_COMPLETE'
         report['final_recovery_verified'] = True
     except Exception as exc:

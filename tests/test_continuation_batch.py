@@ -116,8 +116,10 @@ def test_migration_preserves_all_learning_state_and_continues(tmp_path):
     assert json.loads((next_run / "training/manifest.json").read_text()) == json.loads((continued / "training/manifest.json").read_text())
     for label in labels[1:]:
         assert next_report["checkpoints"][label]["metrics"]["policy_validation"]["group_sampling"] == "objective_mass"
+    # Allow local spawned-worker startup within the five small H2H slices.
+    # This is a test-only ceiling, not a change to production evaluation budgets.
     evaluation = run_suite(next_run, tmp_path / "evaluation", workers=1,
-        max_seconds=240, smoke=True, opponent="check_call")
+        max_seconds=600, smoke=True, opponent="check_call")
     assert evaluation["status"] == "COMPLETE"
     assert list(evaluation["head_to_head"]) == ["P80-vs-P56", "P62-vs-P56", "P68-vs-P62", "P74-vs-P68", "P80-vs-P74"]
     assert set(evaluation["fo2"]["estimates"]) == set(labels)
@@ -144,7 +146,7 @@ def test_migration_preserves_all_learning_state_and_continues(tmp_path):
     for label in p80_labels[1:]:
         assert p80_report["checkpoints"][label]["metrics"]["policy_validation"]["group_sampling"] == "objective_mass"
     p80_evaluation = run_suite(p80_run, tmp_path / "p80-evaluation", workers=1,
-        max_seconds=240, smoke=True, opponent="check_call")
+        max_seconds=600, smoke=True, opponent="check_call")
     assert p80_evaluation["status"] == "COMPLETE"
     assert list(p80_evaluation["head_to_head"]) == ["P104-vs-P80", "P86-vs-P80", "P92-vs-P86", "P98-vs-P92", "P104-vs-P98"]
     assert set(p80_evaluation["fo2"]["estimates"]) == set(p80_labels)
@@ -166,7 +168,7 @@ def test_migration_preserves_all_learning_state_and_continues(tmp_path):
     for label in p104_labels[1:]:
         assert p104_report["checkpoints"][label]["metrics"]["policy_validation"]["group_sampling"] == "objective_mass"
     p104_evaluation = run_suite(p104_run, tmp_path / "p104-evaluation", workers=1,
-        max_seconds=240, smoke=True, opponent="check_call", primary_minimum=400000, primary_effect_bb100=1.)
+        max_seconds=600, smoke=True, opponent="check_call", primary_minimum=400000, primary_effect_bb100=1.)
     assert p104_evaluation["status"] == "COMPLETE"
     assert list(p104_evaluation["head_to_head"]) == ["P128-vs-P104", "P110-vs-P104", "P116-vs-P110", "P122-vs-P116", "P128-vs-P122"]
     assert set(p104_evaluation["fo2"]["estimates"]) == set(p104_labels)
