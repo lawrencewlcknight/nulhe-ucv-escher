@@ -1,4 +1,4 @@
-"""Predeclared final-versus-baseline primary and eight Bonferroni-adjusted secondary tests."""
+"""Predeclared final-versus-baseline primary and Bonferroni-adjusted checkpoint secondary tests."""
 import argparse
 import json
 import math
@@ -19,7 +19,8 @@ from .train import write_json
 SECONDARY_ALPHA = .05 / 8  # Four adjacent head-to-head + four FO2 changes vs baseline.
 
 
-def fo2_plan(pilot, *, minimum, maximum, affordable, effect_bb100=2., alpha=SECONDARY_ALPHA, labels=LABELS):
+def fo2_plan(pilot, *, minimum, maximum, affordable, effect_bb100=2., alpha=None, labels=LABELS):
+    alpha = .05/(2*(len(labels)-1)) if alpha is None else alpha
     base = np.asarray([r[labels[0]]['mean_bb'] for r in pilot])
     differences = {label: sample_plan(np.asarray([r[label]['mean_bb'] for r in pilot])-base,
         minimum=minimum, maximum=maximum, effect_bb100=effect_bb100, alpha=alpha)
@@ -35,7 +36,7 @@ def fo2_plan(pilot, *, minimum, maximum, affordable, effect_bb100=2., alpha=SECO
         differences=differences, precision_required=precision, alpha=alpha,
         estimated_detectable_effect_bb100={k: float(100*factor*math.sqrt(v['pilot_variance_bb2']/selected))
                                           for k,v in differences.items()},
-        pilot_excluded=True, unit='shared_deal_ten_hand_group')
+        pilot_excluded=True, unit='shared_deal_ten_hand_group' if len(labels)==5 else 'shared_deal_eighteen_hand_group')
 
 
 def run_fo2(experiment, output, *, workers=8, pilot_pairs=10000, minimum=100000,
@@ -44,10 +45,11 @@ def run_fo2(experiment, output, *, workers=8, pilot_pairs=10000, minimum=100000,
     validate_design(seed, workers, pilot_pairs, minimum, maximum, max_seconds, 2.)
     if opponent not in ('fo2', 'check_call', 'random'):
         raise ValueError('Invalid opponent')
+    alpha = .05/(2*(len(labels)-1))
     root, output = Path(experiment), Path(output)
     output.mkdir(parents=True, exist_ok=False)
     deadline = time.monotonic()+max_seconds
-    report = dict(status='STARTING', estimates={}, improvements={}, alpha=SECONDARY_ALPHA,
+    report = dict(status='STARTING', estimates={}, improvements={}, alpha=alpha,
                   primary_passed=primary_passed, checkpoints={}, smoke=False,
                   opponent_variant='Fell Omen 2, free-fold-to-check adaptation' if opponent == 'fo2' else 'OFFLINE TEST: '+opponent)
     main = []
@@ -62,10 +64,10 @@ def run_fo2(experiment, output, *, workers=8, pilot_pairs=10000, minimum=100000,
         write_json(output / 'manifest.json', dict(policies=report['checkpoints'], build=build,
             source='continuation.json', pilot_seed=seed, confirmation_seed=seed+1,
             workers=workers, pilot_pairs=pilot_pairs, minimum=minimum, maximum=maximum,
-            max_seconds=max_seconds, alpha=SECONDARY_ALPHA, opponent_variant=report['opponent_variant'],
+            max_seconds=max_seconds, alpha=alpha, opponent_variant=report['opponent_variant'],
             action_streams={label:100*(i+1) for i,label in enumerate(labels)},
-            secondary_family=f'four adjacent head-to-head plus four FO2 changes from {labels[0]}',
-            unit='shared_deal_ten_hand_group'))
+            secondary_family=f'{len(labels)-1} adjacent head-to-head plus {len(labels)-1} FO2 changes from {labels[0]}',
+            unit='shared_deal_ten_hand_group' if len(labels)==5 else 'shared_deal_eighteen_hand_group'))
         matchups = [(label,label,'fo2',100*(i+1)) for i,label in enumerate(labels)]
         report['status'] = 'PILOT'
         write_json(output / 'report.json', report)
@@ -104,7 +106,7 @@ def run_fo2(experiment, output, *, workers=8, pilot_pairs=10000, minimum=100000,
                 report['estimates'][label] = estimate(values, complete=False)
                 report['estimates'][label]['conclusion'] = 'descriptive'
             report['improvements'] = {label:estimate(scores[label]-scores[labels[0]],
-                alpha=SECONDARY_ALPHA, complete=usable) for label in labels[1:]}
+                alpha=alpha, complete=usable) for label in labels[1:]}
             for result in report['improvements'].values():
                 # A failed primary gate is not an incomplete or zero-variance match.
                 # Preserve genuine incomplete/degenerate labels unchanged.
@@ -125,9 +127,11 @@ def gate_secondary(result, primary_passed, smoke):
 
 def render(root, report):
     labels = report.get('labels', LABELS)
-    lines = ['# Limit Holdem 24-hour continuation', '',
-             f'Primary: {labels[-1]} vs {labels[0]}. Secondary: four adjacent matches and four FO2 changes vs {labels[0]}.',
-             'Secondary intervals are 99.375% (Bonferroni across eight); claims require the primary test to pass.',
+    stages = len(labels)-1
+    alpha = .05/(2*stages)
+    lines = [f'# Limit Holdem {6*stages}-hour continuation', '',
+             f'Primary: {labels[-1]} vs {labels[0]}. Secondary: {stages} adjacent matches and {stages} FO2 changes vs {labels[0]}.',
+             f'Secondary intervals are {100*(1-alpha):.4f}% (Bonferroni across {2*stages}); claims require the primary test to pass.',
              'One training seed. Absolute FO2 scores are descriptive; capped/incomplete evaluations are labelled.', '',
              '| Comparison | Status | bb/100 | Interval | Conclusion |',
              '|---|---|---:|---|---|']
@@ -160,7 +164,11 @@ def run_suite(experiment, output, *, workers=8, max_seconds=43200,
     if not smoke and opponent != 'fo2':
         raise ValueError('Production evaluation requires Fell Omen 2')
     baseline_hours = training.get('baseline_hours', 8)
-    labels = checkpoint_labels(baseline_hours)
+    stages = training.get('stage_count', 4)
+    labels = checkpoint_labels(baseline_hours, stages)
+    alpha = .05/(2*stages)
+    if 'labels' in training and training['labels'] != list(labels):
+        raise ValueError('Checkpoint labels differ from declared stage count')
     if set(training['checkpoints']) != set(labels):
         raise ValueError('Completed checkpoints differ from the declared continuation grid')
     if type(extra_seed_offset) is not int or extra_seed_offset < 0:
@@ -170,9 +178,9 @@ def run_suite(experiment, output, *, workers=8, max_seconds=43200,
                     8 if smoke else 1000000, max_seconds, 2.)
     output.mkdir(parents=True, exist_ok=False)
     report = dict(status='EVALUATING', smoke=smoke, primary=f'{labels[-1]}-vs-{labels[0]}', labels=list(labels), head_to_head={},
-                  secondary_alpha=SECONDARY_ALPHA, secondary_family_size=8)
+                  secondary_alpha=alpha, secondary_family_size=2*stages)
     write_json(output/'design.json', dict(labels=labels, primary=report['primary'],
-        secondary_alpha=SECONDARY_ALPHA, secondary_family_size=8, primary_alpha=.05,
+        secondary_alpha=alpha, secondary_family_size=2*stages, primary_alpha=.05,
         primary_effect_bb100=primary_effect_bb100, secondary_effect_bb100=2.,
         primary_minimum_pairs=8 if smoke else primary_minimum,
         secondary_minimum_pairs=8 if smoke else 100000,
@@ -181,7 +189,7 @@ def run_suite(experiment, output, *, workers=8, max_seconds=43200,
         power=.8, pilot_excluded=True, workers=workers,
         max_seconds=max_seconds, smoke=smoke,
         extra_seed_offset=extra_seed_offset,
-        head_to_head_pilot_seeds=[28301+seed_offset+10*i for i in range(5)],
+        head_to_head_pilot_seeds=[28301+seed_offset+10*i for i in range(len(labels))],
         fo2_pilot_seed=29501+seed_offset))
     deadline=time.monotonic()+max_seconds
     # Validate ALL exported identities before the first evaluation starts.
@@ -191,7 +199,7 @@ def run_suite(experiment, output, *, workers=8, max_seconds=43200,
             raise ValueError('Policy differs from completed training record')
     limits=dict(pilot_pairs=4, minimum=8, maximum=8) if smoke else {}
     matches=[(labels[-1],labels[0]), *zip(labels[1:],labels[:-1])]
-    time_weights=[1. if smoke else primary_minimum/100000, 1., 1., 1., 1.]
+    time_weights=[1. if smoke else primary_minimum/100000] + [1.]*stages
     h2h_deadline=time.monotonic()+.2*max_seconds
     primary_passed=False
     for i,(a,b) in enumerate(matches):
@@ -205,7 +213,7 @@ def run_suite(experiment, output, *, workers=8, max_seconds=43200,
                 match_limits['minimum'] = primary_minimum
             item=run_evaluation(root/f'{a}.pkl',str(root/f'{b}.pkl'),output/name,
                 workers=workers, max_seconds=budget, seed=28301+seed_offset+10*i,
-                alpha=.05 if i==0 else SECONDARY_ALPHA,
+                alpha=.05 if i==0 else alpha,
                 effect_bb100=primary_effect_bb100 if i==0 else 2., **match_limits)
         if i==0:
             primary_passed=(not smoke and item['status']=='COMPLETE' and

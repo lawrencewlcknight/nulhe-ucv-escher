@@ -72,9 +72,9 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
               resume_checkpoint=None, expected_resume_sha256=None,
               training_wall_seconds=108000, baseline_hours=8, corrected_sampler=False,
               require_corrected_sampler=False, primary_minimum=100000, primary_effect_bb100=2.,
-              scaled_variant=None, sequential_source=False):
+              scaled_variant=None, sequential_source=False, stage_count=4):
     validate_design(0, 8, 10000, primary_minimum, 1000000, 43200, primary_effect_bb100)
-    baseline = checkpoint_labels(baseline_hours)[0]
+    baseline = checkpoint_labels(baseline_hours, stage_count)[0]
     archive = "source.tar.gz" if baseline_hours == 8 else "training_source.tar.gz"
     # Avoid overwriting or pruning any part of the original experiment.
     source_uri,output_uri=source_uri.rstrip('/'),output_uri.rstrip('/')
@@ -88,11 +88,13 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
     pinned = None
     if scaled_variant is not None:
         from .scaled_continuation import source_spec
-        pinned = source_spec(scaled_variant)
-        if (baseline_hours != 32 or corrected_sampler or not require_corrected_sampler
+        pinned = source_spec(scaled_variant) if baseline_hours == 32 else source_spec(scaled_variant, baseline_hours)
+        if ((baseline_hours, stage_count) not in ((32, 4), (56, 8)) or corrected_sampler or not require_corrected_sampler
                 or source_uri != pinned['source_uri'] or expected_p8_sha256 != pinned['policy_sha256']):
-            raise ValueError('Scaled continuation must use its pinned corrected P32 source')
+            raise ValueError(f'Scaled continuation must use its pinned corrected P{baseline_hours} source and stage count')
         originals = [source_spec(v)['source_uri'] for v in ('wide', 'deep')]
+        if baseline_hours == 56:
+            originals += [source_spec(v, 56)['source_uri'] for v in ('wide', 'deep')]
         if any(output_uri == uri or output_uri.startswith(uri+'/') or uri.startswith(output_uri+'/')
                for uri in originals):
             raise ValueError('Scaled continuation output must preserve both original runs')
@@ -127,7 +129,8 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
             receipt = verify_sequential_source(source, trainer)
         elif pinned:
             from .scaled_continuation import verify_scaled_source
-            receipt = verify_scaled_source(source, trainer, scaled_variant)
+            receipt = (verify_scaled_source(source, trainer, scaled_variant) if baseline_hours == 32 else
+                       verify_scaled_source(source, trainer, scaled_variant, baseline_hours))
         else:
             from .corrected_continuation import verify_corrected_source
             receipt = verify_corrected_source(source, trainer)
@@ -165,10 +168,11 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
             wall_seconds=training_wall_seconds, baseline_hours=baseline_hours,
             require_objective_mass=corrected_sampler or require_corrected_sampler,
             verify_each_stage=bool(pinned),
-            require_protected_sequential=sequential_source)
+            require_protected_sequential=sequential_source, stage_count=stage_count)
         write_json(output/'provenance.json',dict(source_uri=source_uri,output_uri=output_uri,
             baseline=baseline,expected_baseline_sha256=expected_p8_sha256,original_source_sha256=original_archive_sha256,
             scaled_variant=scaled_variant, sequential_source=sequential_source,
+            stage_count=stage_count, additional_active_hours=6*stage_count,
             policy_group_sampling='objective_mass' if corrected_sampler or require_corrected_sampler else 'archived_trainer',
             training_source_fingerprint=report['training_source_fingerprint'],
             fo2_build_fingerprint=assets['fingerprint']))
@@ -200,6 +204,7 @@ def main():
     p.add_argument('--output-uri',required=True)
     p.add_argument('--expected-baseline-sha256','--expected-p8-sha256',dest='expected_p8_sha256',required=True)
     p.add_argument('--baseline-hours',type=int,default=8)
+    p.add_argument('--stage-count',type=int,choices=(4,8),default=4)
     p.add_argument('--resume-checkpoint')
     p.add_argument('--expected-resume-sha256')
     p.add_argument('--training-wall-seconds', type=float, default=108000)
@@ -211,7 +216,7 @@ def main():
     p.add_argument('--sequential-source', action='store_true',
                    help='Continue the pinned protected sequential P8 with its unchanged archived trainer')
     p.add_argument('--scaled-variant', choices=('wide', 'deep'),
-                   help='Continue the pinned architecture-specific P32 with its original archived trainer')
+                   help='Continue the pinned architecture-specific P32 or P56 with its original archived trainer')
     run_cloud(**vars(p.parse_args()))
 
 

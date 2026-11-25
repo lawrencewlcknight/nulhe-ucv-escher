@@ -1,0 +1,20 @@
+{
+  "wide": {
+    "source_uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-wide-p32-plus24-20261124-112651",
+    "policy_sha256": "eacdd12a0fc009666132a9cbd24765316ef0845927aa1f7bbfa4be7cbd9b888b",
+    "source_archive_sha256": "7cfe94e161d64dff9c6eb98bb777f0fb0fefc02da8f1b7b6337ed699257a4f24",
+    "source_fingerprint": "50599477cb1b754a3bb64deaab2dbd816684f066c1e5cf4f60fad19aabad7c92",
+    "state_manifest_sha256": "f476f6e6f8a4a0ecb4c8798b9935618fcd5e38daace990fc85ef25f3da40b045",
+    "iteration": 1703,
+    "evaluation_seed_offset": 3000000
+  },
+  "deep": {
+    "source_uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-deep-p32-plus24-20261124-112723",
+    "policy_sha256": "fe1ef5523e3ff4d983a549b7a3a4c68276e6e7c1983eb62a0a556e7ec296502a",
+    "source_archive_sha256": "b216d1205a2d5691a33a29c85399c10ea12bf1ff13f87506cbf05b674e7d43a1",
+    "source_fingerprint": "2a6d386977336c7745d9fbdf535d53ee69387e41c5ce24288dc8a139e10602fd",
+    "state_manifest_sha256": "48603577a0cac51d142a175888bcf6383a17bd7e01560abc5b7fe0d4c150cf96",
+    "iteration": 1516,
+    "evaluation_seed_offset": 4000000
+  }
+}

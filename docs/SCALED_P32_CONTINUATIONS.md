@@ -158,3 +158,6 @@ checks are engineering tests, not evidence of production playing strength.
 
 After both continuations complete, the [P56 round robin](P56_ROUND_ROBIN.md)
 compares Wide-P56, Deep-P56 and the corrected smaller P56 in a separate evaluation-only Batch job.
+
+The [P56 + 48-hour continuations](SCALED_P56_CONTINUATIONS.md) extend these completed
+wide/deep runs through P104, retaining six-hour checkpoints and corrected sampling.

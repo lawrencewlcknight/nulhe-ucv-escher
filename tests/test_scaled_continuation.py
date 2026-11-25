@@ -191,7 +191,11 @@ def test_continuation_evaluation_has_fresh_variant_seeds(tmp_path, monkeypatch, 
 
 
 @pytest.mark.parametrize('variant', ['wide','deep'])
-def test_real_full_network_continuation_preserves_source(tmp_path, variant, monkeypatch):
+@pytest.mark.parametrize('baseline_hours,stage_count', [(32,4),(56,8)])
+def test_real_full_network_continuation_preserves_source(tmp_path, variant, monkeypatch, baseline_hours, stage_count):
+    from hulhe_escher.continuation import checkpoint_labels
+    labels = checkpoint_labels(baseline_hours, stage_count)
+    baseline_label, final_label = labels[0], labels[-1]
     module = launcher()
     archived = tmp_path/'archived'
     # An optional local archived trainer makes this exercise the actual production
@@ -209,7 +213,7 @@ def test_real_full_network_continuation_preserves_source(tmp_path, variant, monk
         '--policy-seconds','1000000000','--output',str(baseline/'training')]
     result = subprocess.run(command, cwd=archived, env=env, capture_output=True, text=True, timeout=90)
     assert result.returncode == 0, result.stderr[-4000:]
-    publish_policy(baseline/'training', baseline, 'P32')
+    publish_policy(baseline/'training', baseline, baseline_label)
     hashes = {p:sha256_file(p) for p in baseline.rglob('*') if p.is_file()}
     output = tmp_path/'continued'
     uploaded = []
@@ -217,20 +221,21 @@ def test_real_full_network_continuation_preserves_source(tmp_path, variant, monk
         assert json.loads((root/f'reload-{label}.json').read_text())['status'] == 'VERIFIED'
         uploaded.append(label)
     monkeypatch.setattr('hulhe_escher.continuation.upload_checkpoint', upload)
-    report = run_continuation(baseline, archived, output, baseline_hours=32,
+    report = run_continuation(baseline, archived, output, baseline_hours=baseline_hours, stage_count=stage_count,
         stage_seconds=3, wall_seconds=240, allow_smoke=True,
         require_objective_mass=True, verify_each_stage=True, upload_uri='gs://test/offline')
     assert report['status'] == 'TRAINING_COMPLETE' and report['final_recovery_verified']
-    assert list(report['checkpoints']) == ['P32','P38','P44','P50','P56']
+    assert list(report['checkpoints']) == list(labels)
+    assert report['additional_active_seconds'] == stage_count*3
     assert uploaded == list(report['checkpoints'])
-    initial = report['checkpoints']['P32']['active_seconds']
-    for i, label in enumerate(('P38','P44','P50','P56'),1):
+    initial = report['checkpoints'][baseline_label]['active_seconds']
+    for i, label in enumerate(labels[1:],1):
         record = report['checkpoints'][label]
         assert record['target_active_seconds'] == initial+3*i
         assert record['active_seconds'] >= initial+3*i
         assert record['metrics']['policy_validation']['policy_sampling_seed'] == [123,record['outer_iteration']]
         assert json.loads((output/f'reload-{label}.json').read_text())['status'] == 'VERIFIED'
-    assert (output/'P32.pkl').read_bytes() == (baseline/'P32.pkl').read_bytes()
+    assert (output/f'{baseline_label}.pkl').read_bytes() == (baseline/f'{baseline_label}.pkl').read_bytes()
     assert json.loads((output/'training/manifest.json').read_text())['config'] == config
     assert all(sha256_file(p) == value for p,value in hashes.items())
-    assert sha256_file(output/'P56.pkl') != sha256_file(output/'P32.pkl')
+    assert sha256_file(output/f'{final_label}.pkl') != sha256_file(output/f'{baseline_label}.pkl')
