@@ -1,0 +1,42 @@
+{
+  "files": {
+    "Wide-P56.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-wide-p32-plus24-20261124-112651/P56.json",
+      "sha256": "b3753c30380618a93713c763e8e12ca0b020d22a3655fbac45ec86e6e56338a0"
+    },
+    "Wide-P56.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-wide-p32-plus24-20261124-112651/P56.pkl",
+      "sha256": "eacdd12a0fc009666132a9cbd24765316ef0845927aa1f7bbfa4be7cbd9b888b"
+    },
+    "Deep-P56.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-deep-p32-plus24-20261124-112723/P56.json",
+      "sha256": "7b0f903c70dc37e0f41c63ecad3cef6aa7f2e765e49687d25fb32c1c288fc111"
+    },
+    "Deep-P56.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-deep-p32-plus24-20261124-112723/P56.pkl",
+      "sha256": "fe1ef5523e3ff4d983a549b7a3a4c68276e6e7c1983eb62a0a556e7ec296502a"
+    },
+    "Small-P56.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-p32-plus24-batch-20261118-1105/P56.json",
+      "sha256": "584cc21acec24d9c0bb0eb332ae7d1d90f8146411ea713d2955979f4a8e4383b"
+    },
+    "Small-P56.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-p32-plus24-batch-20261118-1105/P56.pkl",
+      "sha256": "35b5348443678a2738d8ae52b1b313370739be90b1e0c298d3f73afd72adc30e"
+    }
+  },
+  "policies": {
+    "Wide-P56": {
+      "iteration": 1703,
+      "active_seconds": 201700.2749384102
+    },
+    "Deep-P56": {
+      "iteration": 1516,
+      "active_seconds": 201780.6127799742
+    },
+    "Small-P56": {
+      "iteration": 1943,
+      "active_seconds": 201900.14795470977
+    }
+  }
+}

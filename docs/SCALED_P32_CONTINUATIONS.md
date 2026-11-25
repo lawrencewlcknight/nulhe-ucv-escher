@@ -153,3 +153,8 @@ verify all five stage boundaries, preserve source file hashes, check sampling se
 and test rejection of source/configuration/recovery drift. Cloud plans and evaluation
 seed selection are checked without launching paid compute. Reduced-budget local
 checks are engineering tests, not evidence of production playing strength.
+
+## Direct P56 architecture comparison
+
+After both continuations complete, the [P56 round robin](P56_ROUND_ROBIN.md)
+compares Wide-P56, Deep-P56 and the corrected smaller P56 in a separate evaluation-only Batch job.
