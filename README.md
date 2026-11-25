@@ -412,6 +412,12 @@ and independent Fell Omen 2 evaluation. Protected selective fitting applies to
 both regret and average-policy networks. Preparation is offline; cloud submission
 is explicit, using separate trainer and evaluator Google Batch jobs.
 
+The [sequential P8 plus 24-hour continuation](docs/SEQUENTIAL_P8_CONTINUATION.md)
+restores that run's full P8 with its unchanged archived trainer and exports
+P14/P20/P26/P32. A single Batch job trains first, then evaluates P32 against P8,
+each adjacent checkpoint pair, and all five policies against Fell Omen 2.
+
+
 The [Wide/Deep-P32 versus corrected smaller P32 experiment](docs/SCALING_CORRECTED_COMPARISON.md)
 evaluates both final scaled policies against both saved corrected P32 refits,
 using shared duplicate deals and two multiplicity-adjusted primary tests.

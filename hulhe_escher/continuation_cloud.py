@@ -72,7 +72,7 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
               resume_checkpoint=None, expected_resume_sha256=None,
               training_wall_seconds=108000, baseline_hours=8, corrected_sampler=False,
               require_corrected_sampler=False, primary_minimum=100000, primary_effect_bb100=2.,
-              scaled_variant=None):
+              scaled_variant=None, sequential_source=False):
     validate_design(0, 8, 10000, primary_minimum, 1000000, 43200, primary_effect_bb100)
     baseline = checkpoint_labels(baseline_hours)[0]
     archive = "source.tar.gz" if baseline_hours == 8 else "training_source.tar.gz"
@@ -85,17 +85,25 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
         raise ValueError('Sampler migration requires a fresh P32 continuation')
     if corrected_sampler and require_corrected_sampler:
         raise ValueError('Select migration or verification of an already corrected trainer')
-    scaled = None
+    pinned = None
     if scaled_variant is not None:
         from .scaled_continuation import source_spec
-        scaled = source_spec(scaled_variant)
+        pinned = source_spec(scaled_variant)
         if (baseline_hours != 32 or corrected_sampler or not require_corrected_sampler
-                or source_uri != scaled['source_uri'] or expected_p8_sha256 != scaled['policy_sha256']):
+                or source_uri != pinned['source_uri'] or expected_p8_sha256 != pinned['policy_sha256']):
             raise ValueError('Scaled continuation must use its pinned corrected P32 source')
         originals = [source_spec(v)['source_uri'] for v in ('wide', 'deep')]
         if any(output_uri == uri or output_uri.startswith(uri+'/') or uri.startswith(output_uri+'/')
                for uri in originals):
             raise ValueError('Scaled continuation output must preserve both original runs')
+    if sequential_source:
+        from .sequential_continuation import source_spec as sequential_spec
+        if scaled_variant is not None:
+            raise ValueError('Choose sequential or scaled continuation, not both')
+        pinned = sequential_spec()
+        if (baseline_hours != 8 or corrected_sampler or not require_corrected_sampler
+                or source_uri != pinned['source_uri'] or expected_p8_sha256 != pinned['policy_sha256']):
+            raise ValueError('Sequential continuation must use its pinned corrected P8 source')
     if resume_checkpoint:
         source, trainer = root/'original-run', root/'archived-trainer'
         if sha256_file(source/f'{baseline}.pkl') != expected_p8_sha256:
@@ -103,9 +111,9 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
         if not trainer.is_dir():
             raise ValueError('Original archived trainer is missing')
     else:
-        options = (dict(expected_archive_sha256=scaled['source_archive_sha256'],
-                        expected_iteration=scaled['iteration'],
-                        expected_state_manifest_sha256=scaled['state_manifest_sha256']) if scaled else {})
+        options = (dict(expected_archive_sha256=pinned['source_archive_sha256'],
+                        expected_iteration=pinned['iteration'],
+                        expected_state_manifest_sha256=pinned['state_manifest_sha256']) if pinned else {})
         source,trainer=download_source(source_uri,root,expected_p8_sha256,baseline_hours, **options)
     original_archive_sha256 = sha256_file(source/archive)
     if corrected_sampler:
@@ -114,7 +122,10 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
         for name in ('sampler-migration.json', 'original-P32-verified.json', 'original-P32-verify.log'):
             storage('cp','--if-generation-match=0',root/name,output_uri+'/'+name)
     if require_corrected_sampler:
-        if scaled:
+        if sequential_source:
+            from .sequential_continuation import verify_sequential_source
+            receipt = verify_sequential_source(source, trainer)
+        elif pinned:
             from .scaled_continuation import verify_scaled_source
             receipt = verify_scaled_source(source, trainer, scaled_variant)
         else:
@@ -153,10 +164,11 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
             resume_checkpoint=resume_checkpoint, expected_resume_sha256=expected_resume_sha256,
             wall_seconds=training_wall_seconds, baseline_hours=baseline_hours,
             require_objective_mass=corrected_sampler or require_corrected_sampler,
-            verify_each_stage=bool(scaled))
+            verify_each_stage=bool(pinned),
+            require_protected_sequential=sequential_source)
         write_json(output/'provenance.json',dict(source_uri=source_uri,output_uri=output_uri,
             baseline=baseline,expected_baseline_sha256=expected_p8_sha256,original_source_sha256=original_archive_sha256,
-            scaled_variant=scaled_variant,
+            scaled_variant=scaled_variant, sequential_source=sequential_source,
             policy_group_sampling='objective_mass' if corrected_sampler or require_corrected_sampler else 'archived_trainer',
             training_source_fingerprint=report['training_source_fingerprint'],
             fo2_build_fingerprint=assets['fingerprint']))
@@ -168,7 +180,7 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
         sync()
         evaluation=run_suite(output,output/'evaluation',workers=8,max_seconds=43200,assets=root/'fo2-assets',
             primary_minimum=primary_minimum,primary_effect_bb100=primary_effect_bb100,
-            extra_seed_offset=scaled['evaluation_seed_offset'] if scaled else 0)
+            extra_seed_offset=pinned['evaluation_seed_offset'] if pinned else 0)
         if evaluation['status'] != 'COMPLETE':
             raise RuntimeError('Continuation evaluation incomplete; inspect evaluation/report.json')
     except Exception as exc:
@@ -196,6 +208,8 @@ def main():
     p.add_argument('--corrected-sampler', action='store_true')
     p.add_argument('--require-corrected-sampler', action='store_true',
                    help='Verify the already corrected archived trainer; do not migrate it again')
+    p.add_argument('--sequential-source', action='store_true',
+                   help='Continue the pinned protected sequential P8 with its unchanged archived trainer')
     p.add_argument('--scaled-variant', choices=('wide', 'deep'),
                    help='Continue the pinned architecture-specific P32 with its original archived trainer')
     run_cloud(**vars(p.parse_args()))

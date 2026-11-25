@@ -84,7 +84,7 @@ def resume_record(root, contract, baseline, label, expected_sha256, stage_second
 def run_continuation(source_run, trainer_source, output, *, stage_seconds=21600.,
                      wall_seconds=108000., upload_uri=None, allow_smoke=False,
                      resume_checkpoint=None, expected_resume_sha256=None, baseline_hours=8,
-                     require_objective_mass=False, verify_each_stage=False):
+                     require_objective_mass=False, verify_each_stage=False, require_protected_sequential=False):
     if not all(math.isfinite(x) and x > 0 for x in (stage_seconds, wall_seconds)):
         raise ValueError('Time budgets must be positive and finite')
     labels = checkpoint_labels(baseline_hours)
@@ -196,6 +196,12 @@ def run_continuation(source_run, trainer_source, output, *, stage_seconds=21600.
                 if (fit.get('group_sampling') != 'objective_mass'
                         or fit.get('policy_sampling_seed') != [contract['seed'], record['outer_iteration']]):
                     raise RuntimeError('Exported policy did not use required objective_mass sampling and seed')
+            if require_protected_sequential:
+                policy_fit = record['metrics'].get('policy_validation', {})
+                fits = [policy_fit, *[fit for fit in record['metrics']['regret_fits'] if fit['updates']]]
+                if any(fit.get('protected_training', {}).get('protocol') != 'protected_selective_v1'
+                       or fit['protected_training'].get('coefficient') != .3 for fit in fits):
+                    raise RuntimeError('Exported stage lacks required protected sequential fitting')
             if record['active_seconds'] < target or record['outer_iteration'] <= report['checkpoints'][labels[index-1]]['outer_iteration']:
                 raise RuntimeError('Training stage did not reach its target')
             record['target_active_seconds'] = target

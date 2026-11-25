@@ -1,0 +1,10 @@
+{
+  "source_uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-sequential-4plus4-20261124-184723",
+  "policy_sha256": "87c921a5235e6d78e9b0b96555cb6e533cdaada4f16c00b164ebcd526c1741d9",
+  "iteration": 170,
+  "source_archive_sha256": "c2fdeb8e9c8dce49b00325870fbc633454034063c1d2c07e9e0be00537ccd206",
+  "source_fingerprint": "d8a30ec9ef60ed45d211fb844a1e19d78fb72278d7bd571a8599b098b3e02930",
+  "state_manifest_sha256": "b0fe8d27dc14cb846bd3ac05e6dec7a160b62e4a9ce9f533c3c79a5226920d9e",
+  "active_seconds": 29035.03224580901,
+  "evaluation_seed_offset": 3000000
+}
