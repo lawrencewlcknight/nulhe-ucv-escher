@@ -14,7 +14,7 @@ from hulhe_escher.continuation import run_continuation
 from hulhe_escher.continuation_evaluate import run_suite
 from hulhe_escher.checkpointing import sha256_file
 from hulhe_escher.experiment import publish_policy
-from hulhe_escher.scaling_config import scaling_config, deep_scaling_config
+from hulhe_escher.scaling_config import scaling_config, deep_scaling_config, hybrid_scaling_config
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -190,8 +190,8 @@ def test_continuation_evaluation_has_fresh_variant_seeds(tmp_path, monkeypatch, 
     assert design['extra_seed_offset'] == extra and design['pilot_excluded']
 
 
-@pytest.mark.parametrize('variant', ['wide','deep'])
-@pytest.mark.parametrize('baseline_hours,stage_count', [(32,4),(56,8)])
+@pytest.mark.parametrize('variant,baseline_hours,stage_count', [
+    ('wide',32,4), ('deep',32,4), ('wide',56,8), ('deep',56,8), ('hybrid',32,8)])
 def test_real_full_network_continuation_preserves_source(tmp_path, variant, monkeypatch, baseline_hours, stage_count):
     from hulhe_escher.continuation import checkpoint_labels
     labels = checkpoint_labels(baseline_hours, stage_count)
@@ -205,7 +205,8 @@ def test_real_full_network_continuation_preserves_source(tmp_path, variant, monk
     if not old: module.source_archive(REPO, archive)
     cloud.extract_source(archive, archived)
     baseline = tmp_path/'baseline'; baseline.mkdir()
-    config = deep_scaling_config(small=True) if variant == 'deep' else scaling_config(small=True)
+    config = {'wide': scaling_config, 'deep': deep_scaling_config,
+              'hybrid': hybrid_scaling_config}[variant](small=True)
     config_path = tmp_path/'config.json'; config_path.write_text(json.dumps(config))
     env = {**os.environ, 'PYTHONPATH':str(archived), 'OMP_NUM_THREADS':'1', 'OPENBLAS_NUM_THREADS':'1'}
     command = [sys.executable,'-m','hulhe_escher.train','--config',str(config_path),'--iterations','1',

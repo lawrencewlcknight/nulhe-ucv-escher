@@ -457,3 +457,7 @@ All three run as bounded Google Batch jobs; preparation does not submit compute.
 The [Wide and Deep P32 +24-hour continuations](docs/SCALED_P32_CONTINUATIONS.md)
 restore each architecture's original full checkpoint and archived trainer, export
 P38/P44/P50/P56, and evaluate progress against its own P32 and Fell Omen 2.
+
+The [Hybrid P32 +48-hour continuation](docs/HYBRID_P32_CONTINUATION.md) restores
+Hybrid-P32 with its original archived trainer, exports P38 through P80 every six
+active hours, and evaluates progress against its own P32 and Fell Omen 2.

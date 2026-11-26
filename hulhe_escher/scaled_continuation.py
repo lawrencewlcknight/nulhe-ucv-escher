@@ -1,11 +1,11 @@
-"""Immutable wide/deep P32/P56 continuation contracts; never migrate either trainer."""
+"""Immutable wide/deep/hybrid P32/P56 continuation contracts; preserve each archived trainer."""
 import json
 from pathlib import Path
 
 from .checkpointing import sha256_file, load_checkpoint_payload
 from .continuation import checked_pointer
 from .corrected_continuation import fingerprint
-from .scaling_config import scaling_config, deep_scaling_config
+from .scaling_config import scaling_config, deep_scaling_config, hybrid_scaling_config
 
 SOURCES = Path(__file__).with_name('data')/'scaled_continuation_sources.json'
 
@@ -14,9 +14,11 @@ def source_spec(variant, baseline_hours=32):
     if baseline_hours not in (32, 56):
         raise ValueError('Scaled source must be P32 or P56')
     path = SOURCES if baseline_hours == 32 else SOURCES.with_name('scaled_p56_continuation_sources.json')
+    if variant == 'hybrid' and baseline_hours == 32:
+        path = SOURCES.with_name('hybrid_continuation_sources.json')
     specs = json.loads(path.read_text())
     if variant not in specs:
-        raise ValueError('Scaled continuation requires wide or deep')
+        raise ValueError('No pinned scaled continuation source for this variant and baseline')
     return specs[variant]
 
 
@@ -24,7 +26,8 @@ def verify_scaled_source(source, trainer, variant, baseline_hours=32):
     source, trainer = Path(source), Path(trainer)
     spec = source_spec(variant) if baseline_hours == 32 else source_spec(variant, baseline_hours)
     baseline = f'P{baseline_hours}'
-    config = deep_scaling_config() if variant == 'deep' else scaling_config()
+    config = {'wide': scaling_config, 'deep': deep_scaling_config,
+              'hybrid': hybrid_scaling_config}[variant]()
     contract = json.loads((source/'training/manifest.json').read_text())
     pointer = checked_pointer(source/'training')
     marker = json.loads((source/f'{baseline}.json').read_text())

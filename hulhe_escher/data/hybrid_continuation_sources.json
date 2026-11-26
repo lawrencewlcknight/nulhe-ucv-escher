@@ -1,0 +1,11 @@
+{
+  "hybrid": {
+    "source_uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-hybrid32-batch-20261124-105219",
+    "policy_sha256": "86240800de897a8c5d3a5bba4613b8e46cf4fcee1ed73472af7ae650f9321f5d",
+    "source_archive_sha256": "eaf3b3f294869bb1c95335defdb6e0468e6d1cd29721a9bf5691da93f06931a0",
+    "source_fingerprint": "2885cbf44f7b476e106197fa6e33fc1d5012887f85d58deffe3c757aff69d050",
+    "state_manifest_sha256": "0c8a4e62bc6195db29ef4e0de226d38ab55a897ccb54feb9999686654d755e8f",
+    "iteration": 777,
+    "evaluation_seed_offset": 5000000
+  }
+}
