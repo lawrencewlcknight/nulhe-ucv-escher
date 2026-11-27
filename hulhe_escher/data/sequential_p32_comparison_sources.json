@@ -1,0 +1,118 @@
+{
+  "fit_seeds": [
+    1701,
+    1702
+  ],
+  "policies": {
+    "Sequential-P32": {
+      "kind": "checkpoint",
+      "iteration": 659,
+      "active_seconds": 115582.36501615302,
+      "architecture": "protected_sequential_v1"
+    },
+    "Wide-P32": {
+      "kind": "checkpoint",
+      "iteration": 953,
+      "active_seconds": 115247.45893288808,
+      "architecture": "structured_hulhe_mlp_v2"
+    },
+    "Deep-P32": {
+      "kind": "checkpoint",
+      "iteration": 868,
+      "active_seconds": 115298.22447376722,
+      "architecture": "deep_residual_v1"
+    },
+    "Hybrid-P32": {
+      "kind": "checkpoint",
+      "iteration": 777,
+      "active_seconds": 115274.42519179395,
+      "architecture": "hybrid_residual_v1"
+    },
+    "P32-corrected-1701": {
+      "kind": "checkpoint",
+      "iteration": 1132,
+      "active_seconds": 115426.86847141995,
+      "architecture": "structured_hulhe_mlp_v2",
+      "fit_seed": 1701,
+      "group_sampling": "objective_mass"
+    },
+    "P32-corrected-1702": {
+      "kind": "checkpoint",
+      "iteration": 1132,
+      "active_seconds": 115426.86847141995,
+      "architecture": "structured_hulhe_mlp_v2",
+      "fit_seed": 1702,
+      "group_sampling": "objective_mass"
+    }
+  },
+  "files": {
+    "P32-fit.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-sampler-p32-20261117-145836/fit/experiment.json",
+      "sha256": "155cbc7c81c84d71972f5dfa42fafa6a4ec4a64866acefe587691cb2255ef8c8"
+    },
+    "P32-corrected-1701.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-sampler-p32-20261117-145836/fit/objective_mass_seed1701.pkl",
+      "sha256": "87ac87878cf5ca1ab24346f152601824717d860f2cac73a8988599fceccbb120"
+    },
+    "P32-corrected-1702.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-sampler-p32-20261117-145836/fit/objective_mass_seed1702.pkl",
+      "sha256": "1f20b88eea2dc1fbb2d9697d4567eca10cd40b2dd1d0f683676fd83df4ec573b"
+    },
+    "Wide-P32.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-wide32-batch-20261122/P32.pkl",
+      "sha256": "7c50fc70baa7187028cb69180477989c53aea3ae3d73b931e675bdce9a01ffeb"
+    },
+    "Wide-P32-launch.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-wide32-batch-20261122/launch.json",
+      "sha256": "9ec728ef1324b7397f43bace1ca959c1485322c580a73af2f2a02f884f27a39d"
+    },
+    "Wide-P32-scaling.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-wide32-batch-20261122/scaling.json",
+      "sha256": "1e191ac9e2ccb571dfb188925920114aa2833e86559d11c3937f838c9fde2dd2"
+    },
+    "Deep-P32.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-deep32-batch-20261122/P32.pkl",
+      "sha256": "078ec1a3f28b18e160f5fe5ea2c406b8e485e3aadf30c31124e0ffa64dcd8546"
+    },
+    "Deep-P32-launch.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-deep32-batch-20261122/launch.json",
+      "sha256": "399fb006dfa606e54fe4c05915a0209f8097b0e3770d50cbe3cc50f4b781f99e"
+    },
+    "Deep-P32-scaling.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-deep32-batch-20261122/scaling.json",
+      "sha256": "df9b7b6ee8710543c12e0a9321d764618f27c475ee3aca4cd79dfca023ef7f62"
+    },
+    "Sequential-P32.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-sequential-p8-plus24-20261125-054522/P32.pkl",
+      "sha256": "847afc800a4f90f95b7924fbdd3914aa01f57260320247b477a14f7505004b07"
+    },
+    "Sequential-P32.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-sequential-p8-plus24-20261125-054522/P32.json",
+      "sha256": "216aff33e66a513c49a77471d3bb059968dab0b86743033ad45b2dd9f1309c82"
+    },
+    "Sequential-provenance.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-sequential-p8-plus24-20261125-054522/provenance.json",
+      "sha256": "0e6d1f4e56a3a69e5069cc197a5260f5a2a4960f0c55e585d102f8b6b9a6ab2a"
+    },
+    "Sequential-sampler-verification.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-sequential-p8-plus24-20261125-054522/sampler-verification.json",
+      "sha256": "8b800235f6f68b6e4743ea2d45f0b75de1d7339c57e5e5cf55efe23598e62b75"
+    },
+    "Hybrid-P32.pkl": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-hybrid32-batch-20261124-105219/P32.pkl",
+      "sha256": "86240800de897a8c5d3a5bba4613b8e46cf4fcee1ed73472af7ae650f9321f5d"
+    },
+    "Hybrid-P32.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-hybrid32-batch-20261124-105219/P32.json",
+      "sha256": "2be01bba71496afd8e52a013f0e38a6682b913baf36371b12af9aabef3964cdb"
+    },
+    "Hybrid-P32-launch.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-hybrid32-batch-20261124-105219/launch.json",
+      "sha256": "84a1ad912f54d2d3cc48a50e9422f205f5e69e09298f6c85f22d911346149243"
+    },
+    "Hybrid-P32-scaling.json": {
+      "uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-hybrid32-batch-20261124-105219/scaling.json",
+      "sha256": "2df8475439c68213b932708047bb4360dc5f3c77ad4b8a902e7596efac2492e7"
+    }
+  }
+}

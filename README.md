@@ -417,6 +417,10 @@ restores that run's full P8 with its unchanged archived trainer and exports
 P14/P20/P26/P32. A single Batch job trains first, then evaluates P32 against P8,
 each adjacent checkpoint pair, and all five policies against Fell Omen 2.
 
+The [Sequential P32 comparison](docs/SEQUENTIAL_P32_COMPARISON.md) evaluates that
+saved P32 against corrected Small, Wide, Deep and Hybrid P32 in one Batch job.
+Both smaller-policy refits receive equal weight. Fresh duplicate deals support
+four multiplicity-adjusted primary tests, with no retraining or replay download.
 
 The [Wide/Deep-P32 versus corrected smaller P32 experiment](docs/SCALING_CORRECTED_COMPARISON.md)
 evaluates both final scaled policies against both saved corrected P32 refits,
