@@ -1,0 +1,10 @@
+{
+  "source_uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-sequential-p8-plus24-20261125-054522",
+  "policy_sha256": "847afc800a4f90f95b7924fbdd3914aa01f57260320247b477a14f7505004b07",
+  "iteration": 659,
+  "source_archive_sha256": "c2fdeb8e9c8dce49b00325870fbc633454034063c1d2c07e9e0be00537ccd206",
+  "source_fingerprint": "d8a30ec9ef60ed45d211fb844a1e19d78fb72278d7bd571a8599b098b3e02930",
+  "state_manifest_sha256": "4f26b225f876be13cc924051cad6d4b04227ee5688aa5d256167c5b768d56499",
+  "active_seconds": 115582.36501615302,
+  "evaluation_seed_offset": 6000000
+}

@@ -68,7 +68,7 @@ def pinned(tmp_path, monkeypatch):
         source_archive_sha256=sha256_file(source/'source.tar.gz'), active_seconds=29035.,
         source_fingerprint=contract['source_fingerprint'],
         state_manifest_sha256=sha256_file(state/'manifest.json'), evaluation_seed_offset=3000000)
-    monkeypatch.setattr(sequential, 'source_spec', lambda:spec)
+    monkeypatch.setattr(sequential, 'source_spec', lambda baseline_hours=8:spec)
     monkeypatch.setattr(sequential, 'load_checkpoint_payload', lambda p:pickle.loads(p.read_bytes()))
     return source, trainer, spec
 
@@ -155,7 +155,9 @@ def test_manifest_pin_before_replay_download(pinned,tmp_path,monkeypatch):
             expected_state_manifest_sha256='wrong')
 
 
-def test_real_archived_sequential_continuation(tmp_path,monkeypatch):
+@pytest.mark.parametrize('baseline_hours', [8, 32])
+def test_real_archived_sequential_continuation(tmp_path,monkeypatch,baseline_hours):
+    labels = [f'P{baseline_hours+6*i}' for i in range(5)]
     archived=tmp_path/'archived'
     # Optional downloaded original archive exercises the precise production code.
     old=os.environ.get('HULHE_SEQUENTIAL_ARCHIVE')
@@ -171,7 +173,7 @@ def test_real_archived_sequential_continuation(tmp_path,monkeypatch):
         '--policy-seconds','1000000000','--output',str(baseline/'training')]
     result=subprocess.run(command,cwd=archived,env=env,capture_output=True,text=True,timeout=90)
     assert result.returncode==0,result.stderr[-4000:]
-    publish_policy(baseline/'training',baseline,'P8')
+    publish_policy(baseline/'training',baseline,labels[0])
     hashes={p:sha256_file(p) for p in baseline.rglob('*') if p.is_file()}
     output=tmp_path/'continued';uploaded=[]
     def upload(root,uri,label):
@@ -179,18 +181,19 @@ def test_real_archived_sequential_continuation(tmp_path,monkeypatch):
         uploaded.append(label)
     monkeypatch.setattr('hulhe_escher.continuation.upload_checkpoint',upload)
     report=run_continuation(baseline,archived,output,stage_seconds=3,wall_seconds=240,
+        baseline_hours=baseline_hours,
         allow_smoke=True,require_objective_mass=True,verify_each_stage=True,
         require_protected_sequential=True,upload_uri='gs://test/offline')
     assert report['status']=='TRAINING_COMPLETE' and report['final_recovery_verified']
-    assert uploaded==['P8','P14','P20','P26','P32']
+    assert uploaded==labels
     for i,label in enumerate(uploaded[1:],1):
         record=report['checkpoints'][label]
-        assert record['target_active_seconds']==report['checkpoints']['P8']['active_seconds']+3*i
+        assert record['target_active_seconds']==report['checkpoints'][labels[0]]['active_seconds']+3*i
         assert record['active_seconds']>=record['target_active_seconds']
         assert record['metrics']['policy_validation']['protected_training']['coefficient']==.3
         assert record['metrics']['policy_validation']['policy_sampling_seed']==[123,record['outer_iteration']]
     assert all(sha256_file(p)==value for p,value in hashes.items())
-    assert sha256_file(output/'P32.pkl')!=sha256_file(output/'P8.pkl')
+    assert sha256_file(output/f'{labels[-1]}.pkl')!=sha256_file(output/f'{labels[0]}.pkl')
     assert len(list((output/'training').glob('state_*')))==1
 
 

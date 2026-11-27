@@ -417,6 +417,11 @@ restores that run's full P8 with its unchanged archived trainer and exports
 P14/P20/P26/P32. A single Batch job trains first, then evaluates P32 against P8,
 each adjacent checkpoint pair, and all five policies against Fell Omen 2.
 
+The [sequential P32 plus 24-hour continuation](docs/SEQUENTIAL_P32_CONTINUATION.md)
+resumes the verified full P32 with the same protected architecture and corrected
+policy sampling. It exports P38/P44/P50/P56 and repeats the continuation evaluation
+against P32, adjacent checkpoints and Fell Omen 2 using fresh deals.
+
 The [Sequential P32 comparison](docs/SEQUENTIAL_P32_COMPARISON.md) evaluates that
 saved P32 against corrected Small, Wide, Deep and Hybrid P32 in one Batch job.
 Both smaller-policy refits receive equal weight. Fresh duplicate deals support
