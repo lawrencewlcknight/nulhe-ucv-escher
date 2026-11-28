@@ -1,0 +1,12 @@
+{
+  "wide": {
+    "source_uri": "gs://clever-overview-399515-fhp-escher-results/hulhe/hulhe-wide-p56-plus48-20261125-192126",
+    "policy_sha256": "dad2c5d6e3cf06f4e8b3cc9142575e15008ad21211b7891ab2e3560f132cc041",
+    "source_archive_sha256": "7cfe94e161d64dff9c6eb98bb777f0fb0fefc02da8f1b7b6337ed699257a4f24",
+    "source_fingerprint": "50599477cb1b754a3bb64deaab2dbd816684f066c1e5cf4f60fad19aabad7c92",
+    "state_manifest_sha256": "1150d7d4e0aa3e6c4699a57948871cfdec02f1952c685d4f8f2334f2546b24a9",
+    "iteration": 3028,
+    "evaluation_seed_offset": 7000000,
+    "active_seconds": 374601.65730819444
+  }
+}

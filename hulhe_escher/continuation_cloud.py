@@ -90,13 +90,15 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
         from .scaled_continuation import source_spec
         pinned = source_spec(scaled_variant) if baseline_hours == 32 else source_spec(scaled_variant, baseline_hours)
         allowed_stages = ((32, 8),) if scaled_variant == 'hybrid' else ((32, 4), (56, 8))
+        if scaled_variant == 'wide':
+            allowed_stages += ((104, 8),)
         if ((baseline_hours, stage_count) not in allowed_stages or corrected_sampler or not require_corrected_sampler
                 or source_uri != pinned['source_uri'] or expected_p8_sha256 != pinned['policy_sha256']):
             raise ValueError(f'Scaled continuation must use its pinned corrected P{baseline_hours} source and stage count')
         originals = [source_spec(v)['source_uri'] for v in ('wide', 'deep')]
         if scaled_variant == 'hybrid':
             originals.append(pinned['source_uri'])
-        if baseline_hours == 56 or scaled_variant == 'hybrid':
+        if baseline_hours >= 56 or scaled_variant == 'hybrid':
             originals += [source_spec(v, 56)['source_uri'] for v in ('wide', 'deep')]
         if any(output_uri == uri or output_uri.startswith(uri+'/') or uri.startswith(output_uri+'/')
                for uri in originals):
@@ -223,7 +225,7 @@ def main():
     p.add_argument('--sequential-source', action='store_true',
                    help='Continue the pinned protected sequential P8 or P32 with its unchanged archived trainer')
     p.add_argument('--scaled-variant', choices=('wide', 'deep', 'hybrid'),
-                   help='Continue the pinned architecture-specific P32 or P56 with its original archived trainer')
+                   help='Continue a pinned scaled P32, P56 or Wide P104 with its original archived trainer')
     run_cloud(**vars(p.parse_args()))
 
 

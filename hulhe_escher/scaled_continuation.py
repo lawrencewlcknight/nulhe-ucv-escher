@@ -1,4 +1,4 @@
-"""Immutable wide/deep/hybrid P32/P56 continuation contracts; preserve each archived trainer."""
+"""Immutable scaled continuation contracts; preserve each archived trainer."""
 import json
 from pathlib import Path
 
@@ -11,9 +11,9 @@ SOURCES = Path(__file__).with_name('data')/'scaled_continuation_sources.json'
 
 
 def source_spec(variant, baseline_hours=32):
-    if baseline_hours not in (32, 56):
-        raise ValueError('Scaled source must be P32 or P56')
-    path = SOURCES if baseline_hours == 32 else SOURCES.with_name('scaled_p56_continuation_sources.json')
+    if baseline_hours not in (32, 56, 104):
+        raise ValueError('Scaled source must be P32, P56 or pinned Wide P104')
+    path = SOURCES if baseline_hours == 32 else SOURCES.with_name(f'scaled_p{baseline_hours}_continuation_sources.json')
     if variant == 'hybrid' and baseline_hours == 32:
         path = SOURCES.with_name('hybrid_continuation_sources.json')
     specs = json.loads(path.read_text())
@@ -45,6 +45,7 @@ def verify_scaled_source(source, trainer, variant, baseline_hours=32):
             or marker['recovery'] != pointer['state'] or marker['label'] != baseline
             or marker.get('smoke') or marker.get('experimental_smoke')
             or marker['active_seconds'] < baseline_hours*3600
+            or ('active_seconds' in spec and marker['active_seconds'] != spec['active_seconds'])
             or marker['sha256'] != spec['policy_sha256']
             or sha256_file(source/f'{baseline}.pkl') != spec['policy_sha256']
             or sha256_file(source/'training'/pointer['state']/'manifest.json') != spec['state_manifest_sha256']):

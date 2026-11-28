@@ -191,7 +191,7 @@ def test_continuation_evaluation_has_fresh_variant_seeds(tmp_path, monkeypatch, 
 
 
 @pytest.mark.parametrize('variant,baseline_hours,stage_count', [
-    ('wide',32,4), ('deep',32,4), ('wide',56,8), ('deep',56,8), ('hybrid',32,8)])
+    ('wide',32,4), ('deep',32,4), ('wide',56,8), ('deep',56,8), ('hybrid',32,8), ('wide',104,8)])
 def test_real_full_network_continuation_preserves_source(tmp_path, variant, monkeypatch, baseline_hours, stage_count):
     from hulhe_escher.continuation import checkpoint_labels
     labels = checkpoint_labels(baseline_hours, stage_count)
