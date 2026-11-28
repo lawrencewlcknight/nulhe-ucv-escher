@@ -422,6 +422,11 @@ resumes the verified full P32 with the same protected architecture and corrected
 policy sampling. It exports P38/P44/P50/P56 and repeats the continuation evaluation
 against P32, adjacent checkpoints and Fell Omen 2 using fresh deals.
 
+The [P104 Wide / Deep / historical Small round robin](docs/P104_ROUND_ROBIN.md)
+compares all three saved P104 policies on fresh seat-swapped deals, with three
+multiplicity-adjusted primary tests. It uses one evaluation-only Batch job and
+downloads only playable policies and provenance, with no refitting or replay.
+
 The [Sequential P32 comparison](docs/SEQUENTIAL_P32_COMPARISON.md) evaluates that
 saved P32 against corrected Small, Wide, Deep and Hybrid P32 in one Batch job.
 Both smaller-policy refits receive equal weight. Fresh duplicate deals support

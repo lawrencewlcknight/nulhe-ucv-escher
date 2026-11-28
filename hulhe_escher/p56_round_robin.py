@@ -1,4 +1,4 @@
-"""Pinned Wide/Deep/corrected Small P56 round robin on fresh duplicate deals."""
+"""Pinned Wide/Deep/corrected Small round robins on fresh duplicate deals."""
 import argparse
 import json
 import multiprocessing as mp
@@ -23,25 +23,40 @@ SMOKE_SEED = 926961
 ALPHA = .05/3
 
 
-def verify_inputs(inputs):
+def source_file(checkpoint_hours=56):
+    if checkpoint_hours not in (56, 104):
+        raise ValueError('Round robin requires a pinned P56 or P104 checkpoint')
+    return SOURCES if checkpoint_hours == 56 else SOURCES.with_name('p104_round_robin_sources.json')
+
+
+def matchups_for(checkpoint_hours):
+    source_file(checkpoint_hours)  # Reject unsupported checkpoints before any work.
+    labels = tuple(f'{variant}-P{checkpoint_hours}' for variant in ('Wide', 'Deep', 'Small'))
+    return [('Wide-vs-Deep', labels[0], labels[1], 100),
+            ('Wide-vs-Small', labels[0], labels[2], 200),
+            ('Deep-vs-Small', labels[1], labels[2], 300)]
+
+
+def verify_inputs(inputs, *, checkpoint_hours=56):
     """Hash all six pinned inputs before loading any trusted pickle."""
     root = Path(inputs)
-    sources = json.loads(SOURCES.read_text())
+    sources = json.loads(source_file(checkpoint_hours).read_text())
+    labels = tuple(f'{variant}-P{checkpoint_hours}' for variant in ('Wide', 'Deep', 'Small'))
     for name, record in sources['files'].items():
         if sha256_file(root/name) != record['sha256']:
             raise ValueError(f'Input checksum mismatch: {name}')
     payloads = {}
-    for label in LABELS:
+    for label in labels:
         marker = json.loads((root/(label+'.json')).read_text())
         pin = sources['policies'][label]
-        if (marker['label'] != 'P56' or marker['smoke']
+        if (marker['label'] != f'P{checkpoint_hours}' or marker['smoke']
                 or marker.get('experimental_smoke', False)
                 or marker['outer_iteration'] != pin['iteration']
                 or marker['active_seconds'] != pin['active_seconds']
-                or marker['active_seconds'] < 56*3600
+                or marker['active_seconds'] < checkpoint_hours*3600
                 or marker['sha256'] != sources['files'][label+'.pkl']['sha256']
                 or marker['metrics']['policy_validation']['group_sampling'] != 'objective_mass'):
-            raise ValueError(f'{label} corrected production P56 provenance mismatch')
+            raise ValueError(f'{label} corrected production P{checkpoint_hours} provenance mismatch')
         payload = load_checkpoint_payload(root/(label+'.pkl'))
         if (payload['outer_iteration'] != pin['iteration']
                 or payload['training_elapsed_seconds'] != pin['active_seconds']
@@ -50,10 +65,10 @@ def verify_inputs(inputs):
         payloads[label] = payload
     for label, payload in payloads.items():
         for field in ('game', 'feature_encoder', 'input_size', 'num_actions'):
-            if payload[field] != payloads[LABELS[0]][field]:
+            if payload[field] != payloads[labels[0]][field]:
                 raise ValueError(f'Policies are not matched on {field}')
     return {label: dict(kind='checkpoint', checkpoint=str((root/(label+'.pkl')).resolve()))
-            for label in LABELS}, sources
+            for label in labels}, sources
 
 
 def observations(rows, matchup):
@@ -77,7 +92,8 @@ def common_plan(pilot, rate, remaining, *, minimum, maximum):
 
 
 def render(root, report):
-    lines = ['# P56 Wide / Deep / corrected Small round robin', '', f"Status: {report['status']}", '',
+    hours = report.get('checkpoint_hours', 56)
+    lines = [f'# P{hours} Wide / Deep / corrected Small round robin', '', f"Status: {report['status']}", '',
         'Positive bb/100 favours the first policy in each matchup.',
         'Three predeclared tests use 98.333% intervals (Bonferroni familywise alpha 5%).',
         'One observation per matchup is the mean of two seat-swapped hands on a shared deal.',
@@ -100,27 +116,30 @@ def render(root, report):
     (root/'comparison_report.md').write_text('\n'.join(lines)+'\n')
 
 
-def run_evaluation(inputs, output, *, workers=8, max_seconds=10800, smoke=False):
+def run_evaluation(inputs, output, *, workers=8, max_seconds=10800, smoke=False, checkpoint_hours=56):
+    matchups = matchups_for(checkpoint_hours)
     pilot_count, minimum, maximum = (4, 8, 8) if smoke else (10000, 100000, 1000000)
-    seed = SMOKE_SEED if smoke else DEAL_SEED
+    seed = (SMOKE_SEED if smoke else DEAL_SEED) if checkpoint_hours == 56 else (928941 if smoke else 928041)
     validate_design(seed, workers, pilot_count, minimum, maximum, max_seconds, 2.)
-    specs, sources = verify_inputs(inputs)
+    specs, sources = verify_inputs(inputs, checkpoint_hours=checkpoint_hours)
     root = Path(output)
     root.mkdir(parents=True, exist_ok=False)
-    write_json(root/'manifest.json', dict(sources=sources, policies=specs, matchups=MATCHUPS,
+    write_json(root/'manifest.json', dict(sources=sources, policies=specs, matchups=matchups,
+        checkpoint_hours=checkpoint_hours,
         pilot_seed=seed, confirmation_seed=seed+1, workers=workers,
         pilot_groups=pilot_count, minimum_groups=minimum, maximum_groups=maximum,
         max_seconds=max_seconds, alpha_per_test=ALPHA, familywise_alpha=.05, power=.8,
         target_effect_bb100=2., unit='Six-hand shared deal group; seat means per matchup.',
         collection=False, retraining=False, smoke=smoke))
-    report = dict(status='STARTING', smoke=smoke, results={}, completed_groups=0, completed_hands=0)
+    report = dict(status='STARTING', smoke=smoke, checkpoint_hours=checkpoint_hours,
+                  results={}, completed_groups=0, completed_hands=0)
     write_json(root/'report.json', report)
     started = time.monotonic()
     deadline, main = started+max_seconds, []
     try:
         with mp.get_context('spawn').Pool(workers, initializer=initialise, initargs=(specs,)) as pool:
             tick = time.monotonic()
-            pilot = collect(pool, count=pilot_count, seed=seed, matchups=MATCHUPS,
+            pilot = collect(pool, count=pilot_count, seed=seed, matchups=matchups,
                 path=root/'pilot.jsonl', deadline=deadline, workers=workers)
             if len(pilot) != pilot_count:
                 report['status'] = 'INCOMPLETE_PILOT'
@@ -134,10 +153,10 @@ def run_evaluation(inputs, output, *, workers=8, max_seconds=10800, smoke=False)
                 else:
                     report['status'] = 'CONFIRMATION'
                     write_json(root/'report.json', report)
-                    collect(pool, count=plan['selected'], seed=seed+1, matchups=MATCHUPS,
+                    collect(pool, count=plan['selected'], seed=seed+1, matchups=matchups,
                         path=root/'confirmatory.jsonl', deadline=deadline, workers=workers, rows=main)
                     report['status'] = 'COMPLETE' if len(main) == plan['selected'] else 'INCOMPLETE_TIME_LIMIT'
-        verify_inputs(inputs)  # Guard against source replacement during evaluation.
+        verify_inputs(inputs, checkpoint_hours=checkpoint_hours)  # Guard against source replacement.
     except Exception as exc:
         report.update(status='EVALUATION_ERROR', reason=f'{type(exc).__name__}: {exc}')
     finally:
@@ -162,6 +181,7 @@ def main():
     p.add_argument('--workers', type=int, default=8)
     p.add_argument('--max-seconds', type=float, default=10800)
     p.add_argument('--smoke', action='store_true')
+    p.add_argument('--checkpoint-hours', type=int, choices=(56, 104), default=56)
     if run_evaluation(**vars(p.parse_args()))['status'] != 'COMPLETE':
         raise SystemExit(1)
 

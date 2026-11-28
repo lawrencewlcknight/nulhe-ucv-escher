@@ -54,7 +54,6 @@ def pinned(frozen_source, tmp_path, monkeypatch):
     sources = tmp_path/'sources.json'
     sources.write_text(json.dumps(dict(files=files, policies=policies)))
     monkeypatch.setattr(comparison, 'SOURCES', sources)
-    monkeypatch.setattr(cloud, 'SOURCES', sources)
     return root
 
 
@@ -132,8 +131,9 @@ class FakePool:
 
 
 @pytest.mark.parametrize('mode', ['complete', 'partial', 'error', 'pilot', 'budget'])
-def test_pilot_exclusion_and_no_partial_significance(tmp_path, monkeypatch, mode):
-    monkeypatch.setattr(comparison, 'verify_inputs', lambda p: ({}, {}))
+@pytest.mark.parametrize('checkpoint_hours', [56, 104])
+def test_pilot_exclusion_and_no_partial_significance(tmp_path, monkeypatch, mode, checkpoint_hours):
+    monkeypatch.setattr(comparison, 'verify_inputs', lambda p, **kw: ({}, {}))
     monkeypatch.setattr(comparison.mp, 'get_context', lambda _: type('Context', (), {'Pool':FakePool}))
     monkeypatch.setattr(comparison, 'common_plan', lambda *a, **kw: dict(selected=4,
         by_matchup={}, full_selected_sample_fits=mode!='budget'))
@@ -146,11 +146,12 @@ def test_pilot_exclusion_and_no_partial_significance(tmp_path, monkeypatch, mode
         if mode == 'error': raise RuntimeError('failure')
         return rows
     monkeypatch.setattr(comparison, 'collect', collect)
-    report = comparison.run_evaluation(tmp_path, tmp_path/'out')
+    report = comparison.run_evaluation(tmp_path, tmp_path/'out', checkpoint_hours=checkpoint_hours)
     if mode in ('pilot', 'budget'):
         assert not report['results'] and len(seeds)==1
     else:
-        assert seeds == [comparison.DEAL_SEED, comparison.DEAL_SEED+1]
+        seed = comparison.DEAL_SEED if checkpoint_hours == 56 else 928041
+        assert seeds == [seed, seed+1]
         r = report['results']['Wide-vs-Deep']
         assert r['bb_per_100'] == (150 if mode in ('partial','error') else 250)
         assert r['confirmatory'] == (mode=='complete')
