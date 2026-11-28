@@ -72,8 +72,8 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
               resume_checkpoint=None, expected_resume_sha256=None,
               training_wall_seconds=108000, baseline_hours=8, corrected_sampler=False,
               require_corrected_sampler=False, primary_minimum=100000, primary_effect_bb100=2.,
-              scaled_variant=None, sequential_source=False, stage_count=4):
-    validate_design(0, 8, 10000, primary_minimum, 1000000, 43200, primary_effect_bb100)
+              scaled_variant=None, sequential_source=False, stage_count=4, evaluation_wall_seconds=43200):
+    validate_design(0, 8, 10000, primary_minimum, 1000000, evaluation_wall_seconds, primary_effect_bb100)
     baseline = checkpoint_labels(baseline_hours, stage_count)[0]
     archive = "source.tar.gz" if baseline_hours == 8 else "training_source.tar.gz"
     # Avoid overwriting or pruning any part of the original experiment.
@@ -91,7 +91,7 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
         pinned = source_spec(scaled_variant) if baseline_hours == 32 else source_spec(scaled_variant, baseline_hours)
         allowed_stages = ((32, 8),) if scaled_variant == 'hybrid' else ((32, 4), (56, 8))
         if scaled_variant == 'wide':
-            allowed_stages += ((104, 8),)
+            allowed_stages += ((104, 8), (104, 12))
         if ((baseline_hours, stage_count) not in allowed_stages or corrected_sampler or not require_corrected_sampler
                 or source_uri != pinned['source_uri'] or expected_p8_sha256 != pinned['policy_sha256']):
             raise ValueError(f'Scaled continuation must use its pinned corrected P{baseline_hours} source and stage count')
@@ -191,7 +191,7 @@ def run_cloud(workspace, source_uri, output_uri, expected_p8_sha256, *,
             source_fingerprint=report['training_source_fingerprint'],
             instructions='Restore the latest full state and manifest, use the archived training source and exact runtime; preserve all contract arguments when invoking hulhe_escher.train --resume. Playable policies alone cannot resume training.'))
         sync()
-        evaluation=run_suite(output,output/'evaluation',workers=8,max_seconds=43200,assets=root/'fo2-assets',
+        evaluation=run_suite(output,output/'evaluation',workers=8,max_seconds=evaluation_wall_seconds,assets=root/'fo2-assets',
             primary_minimum=primary_minimum,primary_effect_bb100=primary_effect_bb100,
             extra_seed_offset=pinned['evaluation_seed_offset'] if pinned else 0)
         if evaluation['status'] != 'COMPLETE':
@@ -213,10 +213,11 @@ def main():
     p.add_argument('--output-uri',required=True)
     p.add_argument('--expected-baseline-sha256','--expected-p8-sha256',dest='expected_p8_sha256',required=True)
     p.add_argument('--baseline-hours',type=int,default=8)
-    p.add_argument('--stage-count',type=int,choices=(4,8),default=4)
+    p.add_argument('--stage-count',type=int,choices=(4,8,12),default=4)
     p.add_argument('--resume-checkpoint')
     p.add_argument('--expected-resume-sha256')
     p.add_argument('--training-wall-seconds', type=float, default=108000)
+    p.add_argument('--evaluation-wall-seconds', type=float, default=43200)
     p.add_argument('--primary-minimum',type=int,default=100000)
     p.add_argument('--primary-effect-bb100',type=float,default=2.)
     p.add_argument('--corrected-sampler', action='store_true')

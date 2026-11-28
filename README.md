@@ -427,10 +427,10 @@ compares all three saved P104 policies on fresh seat-swapped deals, with three
 multiplicity-adjusted primary tests. It uses one evaluation-only Batch job and
 downloads only playable policies and provenance, with no refitting or replay.
 
-The [Wide P104 plus 48-hour continuation](docs/WIDE_P104_CONTINUATION.md) restores
+The [Wide P104 plus 72-hour continuation](docs/WIDE_P104_CONTINUATION.md) restores
 the completed Wide-P104 full state with its unchanged archived trainer and corrected
-policy sampling. It exports P110 through P152 every six hours, then evaluates P152
-against P104, all adjacent checkpoints, and all nine policies against Fell Omen 2.
+policy sampling. It exports P110 through P176 every six hours, then evaluates P176
+against P104, all adjacent checkpoints, and all thirteen policies against Fell Omen 2.
 
 The [Sequential P32 comparison](docs/SEQUENTIAL_P32_COMPARISON.md) evaluates that
 saved P32 against corrected Small, Wide, Deep and Hybrid P32 in one Batch job.

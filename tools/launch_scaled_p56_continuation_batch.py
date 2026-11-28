@@ -14,9 +14,15 @@ REPO = Path(__file__).resolve().parents[1]
 SOURCES = REPO/'hulhe_escher/data/scaled_p56_continuation_sources.json'
 
 
-def build_bundle(output, *, variant, run_name, baseline_hours=56):
+def build_bundle(output, *, variant, run_name, baseline_hours=56, additional_hours=48):
     if baseline_hours not in (56, 104):
         raise ValueError('This launcher supports P56 or pinned Wide P104 continuations')
+    if type(additional_hours) is not int or additional_hours not in (48, 72):
+        raise ValueError('Continuation duration must be 48 or 72 hours')
+    if additional_hours == 72 and (variant, baseline_hours) != ('wide', 104):
+        raise ValueError('72-hour continuation requires pinned Wide P104')
+    stage_count = additional_hours // 6
+    training_hours, evaluation_hours, job_hours = (90, 18, 110) if additional_hours == 72 else (60, 12, 74)
     path = SOURCES if baseline_hours == 56 else SOURCES.with_name('scaled_p104_continuation_sources.json')
     sources = json.loads(path.read_text())
     if variant not in sources:
@@ -38,26 +44,27 @@ def build_bundle(output, *, variant, run_name, baseline_hours=56):
     command = ['python', '-m', 'hulhe_escher.continuation_cloud',
         '--workspace', '/workspace/continuation', '--source-uri', spec['source_uri'],
         '--output-uri', uri, '--expected-baseline-sha256', spec['policy_sha256'],
-        '--baseline-hours', str(baseline_hours), '--stage-count', '8', '--training-wall-seconds', '216000',
+        '--baseline-hours', str(baseline_hours), '--stage-count', str(stage_count), '--training-wall-seconds', str(training_hours*3600),
+        '--evaluation-wall-seconds', str(evaluation_hours*3600),
         '--require-corrected-sampler', '--scaled-variant', variant]
     script = bootstrap(command, uri, digest)
     job = job_spec(script, 'fhp-escher-runner@clever-overview-399515.iam.gserviceaccount.com',
-        boot_disk_gb=200, max_run_seconds=74*3600,
-        labels=dict(experiment=f'hulhe-{variant}-p{baseline_hours}-plus48', sampler='objective-mass'))
+        boot_disk_gb=200, max_run_seconds=job_hours*3600,
+        labels=dict(experiment=f'hulhe-{variant}-p{baseline_hours}-plus{additional_hours}', sampler='objective-mass'))
     plan = dict(job_name=run_name, project='clever-overview-399515', region='europe-west1', uri=uri,
         variant=variant, source_sha256=digest, baseline=spec,
         machine='c4-standard-16', collection_workers=8, training_threads=8,
-        labels=[f'P{baseline_hours+6*i}' for i in range(9)], additional_active_hours=48, stage_hours=6, stage_count=8,
+        labels=[f'P{baseline_hours+6*i}' for i in range(stage_count+1)], additional_active_hours=additional_hours, stage_hours=6, stage_count=stage_count,
         initialization=f'Resume full P{baseline_hours} state with its unmodified archived trainer; preserve models, replay, optimizers and RNGs.',
         per_network_parameters=777731 if variant == 'wide' else 749827,
         policy_replay_capacity=12000000, policy_group_sampling='objective_mass',
         source_modified=False, config_changed=False, verify_each_stage=True,
-        training_wall_hours=60, evaluation_wall_hours=12, max_job_hours=74, automatic_retries=0,
-        primary=f'{variant.capitalize()}-P{baseline_hours+48} versus its own P{baseline_hours}; alpha .05',
-        secondary=f'Eight adjacent policy comparisons and eight paired FO2 improvements from P{baseline_hours}; alpha .05/16, gated by primary success.',
+        training_wall_hours=training_hours, evaluation_wall_hours=evaluation_hours, max_job_hours=job_hours, automatic_retries=0,
+        primary=f'{variant.capitalize()}-P{baseline_hours+additional_hours} versus its own P{baseline_hours}; alpha .05',
+        secondary=f'{stage_count} adjacent policy comparisons and {stage_count} paired FO2 improvements from P{baseline_hours}; alpha .05/{2*stage_count}, gated by primary success.',
         pilot_pairs=10000, minimum_pairs=100000, maximum_pairs=1000000,
         effect_bb100=2., target_power=.8, evaluation_seed_offset=spec['evaluation_seed_offset'],
-        absolute_fo2_scores='Descriptive for '+ '/'.join(f'P{baseline_hours+6*i}' for i in range(9)),
+        absolute_fo2_scores='Descriptive for '+ '/'.join(f'P{baseline_hours+6*i}' for i in range(stage_count+1)),
         training_seed=20261115, recovery_wall_hours=6, recovery_skip_recent_hours=1,
         python_container=PYTHON_IMAGE, vm_image=VM_IMAGE,
         cleanup='Batch releases VM/disk; source run stays read-only; new playable policies and latest full recovery remain in GCS.')

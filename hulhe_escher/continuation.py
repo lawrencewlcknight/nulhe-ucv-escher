@@ -21,8 +21,8 @@ from .train import write_json
 def checkpoint_labels(baseline_hours=8, stage_count=4):
     if isinstance(baseline_hours, bool) or not isinstance(baseline_hours, int) or baseline_hours < 8 or (baseline_hours-8) % 24:
         raise ValueError('Baseline hours must be 8 plus a whole number of 24-hour continuations')
-    if type(stage_count) is not int or stage_count not in (4, 8):
-        raise ValueError('Continuation requires four or eight six-hour stages')
+    if type(stage_count) is not int or stage_count not in (4, 8, 12):
+        raise ValueError('Continuation requires four, eight or twelve six-hour stages')
     return tuple(f'P{baseline_hours+6*i}' for i in range(stage_count+1))
 
 
@@ -237,7 +237,7 @@ def main():
     p.add_argument('--trainer-source', type=Path, required=True)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--stage-seconds', type=float, default=21600)
-    p.add_argument('--stage-count', type=int, choices=(4, 8), default=4)
+    p.add_argument('--stage-count', type=int, choices=(4, 8, 12), default=4)
     p.add_argument('--wall-seconds', type=float, default=108000)
     p.add_argument('--upload-uri')
     p.add_argument('--allow-smoke', action='store_true')

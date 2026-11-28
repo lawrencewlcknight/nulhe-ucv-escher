@@ -1,14 +1,22 @@
 #!/usr/bin/env python3
-"""Prepare Wide P104 to P152 as a Google Batch continuation; submission is explicit."""
+"""Prepare Wide P104 to P176 as a Google Batch continuation; submission is explicit."""
 import argparse
 import json
 from pathlib import Path
 
-from launch_scaled_p56_continuation_batch import build_bundle as _build_bundle, submit
+from launch_scaled_p56_continuation_batch import build_bundle as _build_bundle, submit as _submit
 
 
 def build_bundle(output, *, run_name):
-    return _build_bundle(output, variant='wide', run_name=run_name, baseline_hours=104)
+    return _build_bundle(output, variant='wide', run_name=run_name, baseline_hours=104, additional_hours=72)
+
+
+def submit(output):
+    plan = json.loads((Path(output)/'launch.json').read_text())
+    if (plan.get('variant'), plan.get('additional_active_hours'), plan.get('stage_count'),
+            plan.get('labels')) != ('wide', 72, 12, [f'P{104+6*i}' for i in range(13)]):
+        raise ValueError('Prepare a new Wide P104 plus72 bundle; this launcher cannot submit an old 48-hour bundle')
+    _submit(output)
 
 
 def main():

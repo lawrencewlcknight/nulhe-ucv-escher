@@ -19,6 +19,12 @@ from .train import write_json
 SECONDARY_ALPHA = .05 / 8  # Four adjacent head-to-head + four FO2 changes vs baseline.
 
 
+def shared_deal_unit(labels):
+    words = {10: 'ten', 18: 'eighteen', 26: 'twenty_six'}
+    hands = 2*len(labels)
+    return f'shared_deal_{words.get(hands, str(hands))}_hand_group'
+
+
 def fo2_plan(pilot, *, minimum, maximum, affordable, effect_bb100=2., alpha=None, labels=LABELS):
     alpha = .05/(2*(len(labels)-1)) if alpha is None else alpha
     base = np.asarray([r[labels[0]]['mean_bb'] for r in pilot])
@@ -36,7 +42,7 @@ def fo2_plan(pilot, *, minimum, maximum, affordable, effect_bb100=2., alpha=None
         differences=differences, precision_required=precision, alpha=alpha,
         estimated_detectable_effect_bb100={k: float(100*factor*math.sqrt(v['pilot_variance_bb2']/selected))
                                           for k,v in differences.items()},
-        pilot_excluded=True, unit='shared_deal_ten_hand_group' if len(labels)==5 else 'shared_deal_eighteen_hand_group')
+        pilot_excluded=True, hands_per_group=2*len(labels), unit=shared_deal_unit(labels))
 
 
 def run_fo2(experiment, output, *, workers=8, pilot_pairs=10000, minimum=100000,
@@ -67,7 +73,7 @@ def run_fo2(experiment, output, *, workers=8, pilot_pairs=10000, minimum=100000,
             max_seconds=max_seconds, alpha=alpha, opponent_variant=report['opponent_variant'],
             action_streams={label:100*(i+1) for i,label in enumerate(labels)},
             secondary_family=f'{len(labels)-1} adjacent head-to-head plus {len(labels)-1} FO2 changes from {labels[0]}',
-            unit='shared_deal_ten_hand_group' if len(labels)==5 else 'shared_deal_eighteen_hand_group'))
+            hands_per_group=2*len(labels), unit=shared_deal_unit(labels)))
         matchups = [(label,label,'fo2',100*(i+1)) for i,label in enumerate(labels)]
         report['status'] = 'PILOT'
         write_json(output / 'report.json', report)

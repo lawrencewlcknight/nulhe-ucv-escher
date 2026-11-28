@@ -1,4 +1,4 @@
-"""Pinned Wide P104 recovery, eight continuation stages and fresh evaluations."""
+"""Pinned Wide P104 recovery, twelve continuation stages and fresh evaluations."""
 import json
 from pathlib import Path
 import pickle
@@ -14,7 +14,7 @@ from hulhe_escher.checkpointing import sha256_file
 from hulhe_escher.scaling_config import scaling_config
 
 REPO = Path(__file__).resolve().parents[1]
-LABELS = tuple(f'P{104+6*i}' for i in range(9))
+LABELS = tuple(f'P{104+6*i}' for i in range(13))
 
 
 @pytest.fixture
@@ -50,22 +50,23 @@ def test_p104_batch_plan_and_protected_sources(tmp_path):
     sys.path.insert(0,str(REPO/'tools'))
     import launch_wide_p104_continuation_batch as launcher
     output = tmp_path/'plan'
-    plan = launcher.build_bundle(output,run_name='hulhe-wide-p104-plus48-test')
+    plan = launcher.build_bundle(output,run_name='hulhe-wide-p104-plus72-test')
     assert plan['baseline'] == scaled.source_spec('wide',104)
     assert plan['baseline']['iteration'] == 3028 and plan['evaluation_seed_offset'] == 7000000
-    assert plan['labels'] == list(LABELS) and plan['stage_count'] == 8
-    assert plan['additional_active_hours'] == 48 and plan['stage_hours'] == 6
-    assert plan['primary'] == 'Wide-P152 versus its own P104; alpha .05'
+    assert plan['labels'] == list(LABELS) and plan['stage_count'] == 12
+    assert plan['additional_active_hours'] == 72 and plan['stage_hours'] == 6
+    assert (plan['training_wall_hours'],plan['evaluation_wall_hours'],plan['max_job_hours']) == (90,18,110)
+    assert plan['primary'] == 'Wide-P176 versus its own P104; alpha .05'
     assert plan['verify_each_stage'] and not plan['source_modified'] and not plan['config_changed']
     assert plan['policy_group_sampling'] == 'objective_mass' and plan['policy_replay_capacity'] == 12000000
     job = json.loads((output/'job.json').read_text())
     task = job['taskGroups'][0]['taskSpec']
-    assert task['maxRunDuration'] == '266400s' and task['maxRetryCount'] == 0
+    assert task['maxRunDuration'] == '396000s' and task['maxRetryCount'] == 0
     policy = job['allocationPolicy']['instances'][0]['policy']
     assert policy['machineType'] == 'c4-standard-16' and policy['bootDisk']['sizeGb'] == 200
     script = (output/'batch.sh').read_text()
-    for flag in ('--baseline-hours 104','--stage-count 8','--training-wall-seconds 216000',
-                 '--require-corrected-sampler','--scaled-variant wide'):
+    for flag in ('--baseline-hours 104','--stage-count 12','--training-wall-seconds 324000',
+                 '--evaluation-wall-seconds 64800','--require-corrected-sampler','--scaled-variant wide'):
         assert flag in script
     subprocess.run(['bash','-n',str(output/'batch.sh')],check=True)
     for variant,hours in [('wide',32),('deep',32),('wide',56),('deep',56),('wide',104)]:
@@ -96,26 +97,27 @@ def test_cloud_routes_p104_to_original_trainer(pinned,tmp_path,monkeypatch):
     monkeypatch.setattr(cloud,'prepare',lambda p:dict(fingerprint='fo2'))
     def train(src,archived,output,**kwargs):
         assert src == source and archived == trainer
-        assert kwargs['baseline_hours'] == 104 and kwargs['stage_count'] == 8
-        assert kwargs['wall_seconds'] == 216000 and kwargs['verify_each_stage'] and kwargs['require_objective_mass']
+        assert kwargs['baseline_hours'] == 104 and kwargs['stage_count'] == 12
+        assert kwargs['wall_seconds'] == 324000 and kwargs['verify_each_stage'] and kwargs['require_objective_mass']
         output.mkdir(parents=True)
         return dict(training_source_fingerprint=spec['source_fingerprint'])
     def evaluate(*args,**kwargs):
         assert kwargs['extra_seed_offset'] == 7000000
+        assert kwargs['max_seconds'] == 64800
         return dict(status='COMPLETE')
     monkeypatch.setattr(cloud,'run_continuation',train)
     monkeypatch.setattr(cloud,'run_suite',evaluate)
     root=tmp_path/'cloud';root.mkdir()
     cloud.run_cloud(root,spec['source_uri'],'gs://test/new',spec['policy_sha256'],baseline_hours=104,
-        stage_count=8,training_wall_seconds=216000,require_corrected_sampler=True,scaled_variant='wide')
+        stage_count=12,training_wall_seconds=324000,evaluation_wall_seconds=64800,require_corrected_sampler=True,scaled_variant='wide')
     provenance=json.loads((root/'run/provenance.json').read_text())
-    assert provenance['additional_active_hours'] == 48 and provenance['baseline'] == 'P104'
+    assert provenance['additional_active_hours'] == 72 and provenance['baseline'] == 'P104'
 
 
 @pytest.mark.parametrize('change',['stage_count','sampler','digest','old_source','deep'])
 def test_bad_cloud_request_fails_before_download(tmp_path,monkeypatch,change):
     spec=scaled.source_spec('wide',104)
-    kwargs=dict(baseline_hours=104,stage_count=8,scaled_variant='wide',require_corrected_sampler=True)
+    kwargs=dict(baseline_hours=104,stage_count=12,scaled_variant='wide',require_corrected_sampler=True)
     output,digest='gs://test/new',spec['policy_sha256']
     if change=='stage_count':kwargs['stage_count']=4
     elif change=='sampler':kwargs['require_corrected_sampler']=False
@@ -139,10 +141,10 @@ def test_manifest_pin_before_replay(pinned,tmp_path,monkeypatch):
             expected_state_manifest_sha256='wrong')
 
 
-def test_p152_evaluation_and_fresh_seeds(tmp_path,monkeypatch):
+def test_p176_evaluation_and_fresh_seeds(tmp_path,monkeypatch):
     root=tmp_path/'run';root.mkdir()
     (root/'continuation.json').write_text(json.dumps(dict(status='TRAINING_COMPLETE',
-        final_recovery_verified=True,smoke=False,baseline_hours=104,stage_count=8,labels=list(LABELS),
+        final_recovery_verified=True,smoke=False,baseline_hours=104,stage_count=12,labels=list(LABELS),
         checkpoints={label:dict(sha256=label) for label in LABELS})))
     monkeypatch.setattr(evaluation,'wait_policy',lambda r,l,d:(r/f'{l}.pkl',dict(sha256=l)))
     matches=[];opponents=[]
@@ -154,9 +156,27 @@ def test_p152_evaluation_and_fresh_seeds(tmp_path,monkeypatch):
     monkeypatch.setattr(evaluation,'run_evaluation',match)
     monkeypatch.setattr(evaluation,'run_fo2',fo2)
     report=evaluation.run_suite(root,tmp_path/'eval',extra_seed_offset=7000000)
-    assert report['status']=='COMPLETE' and report['primary']=='P152-vs-P104'
-    assert report['secondary_family_size']==16 and not report['primary_passed']
-    assert [(a,b) for a,b,_ in matches]==[('P152','P104'),*zip(LABELS[1:],LABELS[:-1])]
-    assert [kw['alpha'] for _,_,kw in matches]==[.05]+[.05/16]*8
-    assert [kw['seed'] for _,_,kw in matches]==[7124301+10*i for i in range(9)]
+    assert report['status']=='COMPLETE' and report['primary']=='P176-vs-P104'
+    assert report['secondary_family_size']==24 and not report['primary_passed']
+    assert [(a,b) for a,b,_ in matches]==[('P176','P104'),*zip(LABELS[1:],LABELS[:-1])]
+    assert [kw['alpha'] for _,_,kw in matches]==[.05]+[.05/24]*12
+    assert [kw['seed'] for _,_,kw in matches]==[7124301+10*i for i in range(13)]
     assert opponents[0]['labels']==LABELS and opponents[0]['seed']==7125501
+
+
+def test_old_prepared_bundle_cannot_be_submitted(tmp_path, monkeypatch):
+    sys.path.insert(0, str(REPO/'tools'))
+    import launch_wide_p104_continuation_batch as launcher
+    (tmp_path/'launch.json').write_text(json.dumps(dict(variant='wide',
+        additional_active_hours=48,stage_count=8,labels=list(LABELS[:9]))))
+    monkeypatch.setattr(launcher,'_submit',lambda p:pytest.fail('No cloud writes'))
+    with pytest.raises(ValueError,match='new Wide P104 plus72'):
+        launcher.submit(tmp_path)
+
+
+def test_fo2_thirteen_policy_power_plan():
+    pilot=[{label:dict(mean_bb=(-1)**i*j+i*.1) for j,label in enumerate(LABELS)} for i in range(100)]
+    plan=evaluation.fo2_plan(pilot,minimum=100,maximum=1000000,affordable=1000000,labels=LABELS)
+    assert plan['alpha']==.05/24 and len(plan['differences'])==12
+    assert len(plan['precision_required'])==13
+    assert plan['unit']=='shared_deal_twenty_six_hand_group' and plan['hands_per_group']==26

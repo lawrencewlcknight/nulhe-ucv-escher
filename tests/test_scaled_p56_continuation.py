@@ -183,25 +183,27 @@ def test_completed_stage_retry_retains_48_hour_contract(tmp_path, monkeypatch):
         continuation.resume_record(root,contract,records['P56'],'P80',last['sha256'],21600.,LABELS)
 
 
-def test_real_nine_policy_offline_evaluation(frozen_source, tmp_path):
+@pytest.mark.parametrize('baseline_hours,stage_count', [(56,8),(104,12)])
+def test_real_nine_policy_offline_evaluation(frozen_source, tmp_path, baseline_hours, stage_count):
+    labels=continuation.checkpoint_labels(baseline_hours,stage_count)
     import shutil
     _, policy = frozen_source
     root=tmp_path/'nine-policies';root.mkdir()
     records={}
-    for label in LABELS:
+    for label in labels:
         shutil.copyfile(policy,root/f'{label}.pkl')
         record=dict(label=label,sha256=sha256_file(root/f'{label}.pkl'),outer_iteration=10,
                     active_seconds=1.,smoke=True)
         (root/f'{label}.json').write_text(json.dumps(record));records[label]=record
     (root/'continuation.json').write_text(json.dumps(dict(status='TRAINING_COMPLETE',
-        final_recovery_verified=True,smoke=True,baseline_hours=56,stage_count=8,
-        labels=list(LABELS),checkpoints=records)))
-    result=evaluation.run_suite(root,tmp_path/'evaluation',workers=1,max_seconds=480,
+        final_recovery_verified=True,smoke=True,baseline_hours=baseline_hours,stage_count=stage_count,
+        labels=list(labels),checkpoints=records)))
+    result=evaluation.run_suite(root,tmp_path/'evaluation',workers=1,max_seconds=720,
                                 smoke=True,opponent='check_call')
-    assert result['status']=='COMPLETE' and len(result['head_to_head'])==9
+    assert result['status']=='COMPLETE' and len(result['head_to_head'])==len(labels)
     assert result['fo2']['completed_groups']==8
     assert result['fo2']['completed_hands_per_policy']==16
-    assert len(result['fo2']['estimates'])==9 and len(result['fo2']['improvements'])==8
-    assert result['fo2']['alpha']==.05/16
+    assert len(result['fo2']['estimates'])==len(labels) and len(result['fo2']['improvements'])==stage_count
+    assert result['fo2']['alpha']==.05/(2*stage_count)
     assert all(not r['confirmatory'] for r in result['fo2']['improvements'].values())
-    assert all(r['confidence']==1-.05/16 for r in result['fo2']['improvements'].values())
+    assert all(r['confidence']==1-.05/(2*stage_count) for r in result['fo2']['improvements'].values())
